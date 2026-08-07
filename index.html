@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CTC Calculator — Wage Code</title>
+<link rel="stylesheet" href="styles.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="wage-logic.js"></script>
+</head>
+<body>
+
+<!-- ===================== LOGIN VIEW ===================== -->
+<div id="authView" class="auth-box">
+  <h1>Sign in</h1>
+  <p class="note">Use your registered email to access the CTC calculator.</p>
+  <label>Email</label>
+  <input id="loginEmail" type="email" placeholder="you@company.com" />
+  <label style="margin-top:12px;">Password</label>
+  <input id="loginPassword" type="password" placeholder="••••••••" />
+  <button id="loginBtn" style="width:100%;">Sign in</button>
+  <button id="signupBtn" class="secondary" style="width:100%;">Create account</button>
+  <div id="authError" class="error-msg"></div>
+</div>
+
+<!-- ===================== APP VIEW ===================== -->
+<div id="appView" class="hidden">
+  <div class="topbar">
+    <div>
+      <h1>CTC Calculator</h1>
+      <div class="sub">Wage Code structure — Basic, Remuneration, CTC & Cash-in-Hand</div>
+    </div>
+    <nav>
+      <a href="admin.html" id="adminLink" class="hidden">Admin panel</a>
+      <a href="#" id="logoutLink">Sign out</a>
+    </nav>
+  </div>
+
+  <div class="wrap">
+    <div class="card">
+      <h2>Inputs</h2>
+      <div class="field-grid">
+        <div>
+          <label>State (for statutory minimum wage)</label>
+          <select id="stateSelect"></select>
+        </div>
+        <div>
+          <label>Monthly HRA (₹)</label>
+          <input id="hraInput" type="number" min="0" value="0" />
+        </div>
+        <div>
+          <label>Monthly Other Excluded Allowance (₹)</label>
+          <input id="otherInput" type="number" min="0" value="0" />
+        </div>
+      </div>
+      <button id="calcBtn">Calculate</button>
+    </div>
+
+    <div class="card hidden" id="resultCard">
+      <h2>Monthly structure <span id="mwFlag" class="flag hidden"></span></h2>
+      <table>
+        <tbody id="resultBody"></tbody>
+      </table>
+      <p class="note" id="assumptionNote"></p>
+    </div>
+  </div>
+</div>
+
+<script>
+const supa = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+
+const authView = document.getElementById('authView');
+const appView = document.getElementById('appView');
+const authError = document.getElementById('authError');
+
+let cfg = {};       // formula_config as {key: value}
+let mwRates = {};   // {state: monthly_mw}
+
+// ---------- AUTH ----------
+document.getElementById('loginBtn').onclick = async () => {
+  authError.textContent = '';
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const { error } = await supa.auth.signInWithPassword({ email, password });
+  if (error) authError.textContent = error.message;
+  else onAuthed();
+};
+
+document.getElementById('signupBtn').onclick = async () => {
+  authError.textContent = '';
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  if (!email || password.length < 6) {
+    authError.textContent = 'Enter an email and a password (6+ characters).';
+    return;
+  }
+  const { error } = await supa.auth.signUp({ email, password });
+  if (error) authError.textContent = error.message;
+  else authError.textContent = 'Account created. Check your email if confirmation is required, then sign in.';
+};
+
+document.getElementById('logoutLink').onclick = async (e) => {
+  e.preventDefault();
+  await supa.auth.signOut();
+  location.reload();
+};
+
+async function onAuthed() {
+  authView.classList.add('hidden');
+  appView.classList.remove('hidden');
+  await loadConfig();
+  await checkAdmin();
+}
+
+async function checkAdmin() {
+  const { data: { user } } = await supa.auth.getUser();
+  if (!user) return;
+  const { data } = await supa.from('profiles').select('is_admin').eq('id', user.id).single();
+  if (data && data.is_admin) {
+    document.getElementById('adminLink').classList.remove('hidden');
+  }
+}
+
+// ---------- LOAD CONFIG FROM SUPABASE ----------
+async function loadConfig() {
+  const { data: cfgRows, error: cfgErr } = await supa.from('formula_config').select('*');
+  const { data: mwRows, error: mwErr } = await supa.from('mw_rates').select('*').order('state');
+
+  if (cfgErr || mwErr) {
+    alert('Could not load configuration. Check your Supabase setup / RLS policies.');
+    return;
+  }
+
+  cfg = {};
+  cfgRows.forEach(r => cfg[r.key] = Number(r.value));
+
+  mwRates = {};
+  mwRows.forEach(r => mwRates[r.state] = Number(r.monthly_mw));
+
+  const sel = document.getElementById('stateSelect');
+  sel.innerHTML = '';
+  mwRows.forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r.state;
+    opt.textContent = `${r.state} (₹${r.monthly_mw}/mo)`;
+    sel.appendChild(opt);
+  });
+}
+
+// ---------- CALCULATE ----------
+document.getElementById('calcBtn').onclick = () => {
+  const state = document.getElementById('stateSelect').value;
+  const hra = parseFloat(document.getElementById('hraInput').value) || 0;
+  const otherAllowance = parseFloat(document.getElementById('otherInput').value) || 0;
+  const minWage = mwRates[state] || 0;
+
+  const r = computeStructure({ hra, otherAllowance, minWage, cfg });
+
+  const rows = [
+    ['Basic', r.basic],
+    ['HRA', r.hra],
+    ['Other Excluded Allowance', r.otherAllowance],
+    ['Employer PF', r.employerPF],
+    [`Statutory Bonus ${r.bonusApplicable ? '' : '(not applicable — Basic ≥ ceiling)'}`, r.statutoryBonus],
+    ['— Remuneration', r.remuneration, true],
+    ['Employer ESIC' + (r.esicApplicable ? '' : ' (not applicable)'), r.employerESIC],
+    ['Gratuity', r.gratuity],
+    ['CTC (monthly)', r.ctc, true],
+    ['— Annual CTC', r.ctc * 12, true],
+    ['', ''],
+    ['Employee PF (deduction)', -r.employeePF],
+    ['Employee ESIC (deduction)' + (r.esicApplicable ? '' : ' (not applicable)'), -r.employeeESIC],
+    ['Cash in Hand (monthly)', r.cih, true],
+  ];
+
+  const body = document.getElementById('resultBody');
+  body.innerHTML = '';
+  rows.forEach(([label, value, isTotal]) => {
+    if (label === '') { body.innerHTML += '<tr><td colspan="2">&nbsp;</td></tr>'; return; }
+    const tr = document.createElement('tr');
+    if (isTotal) tr.className = 'total';
+    tr.innerHTML = `<td>${label}</td><td>${typeof value === 'number' ? '₹' + value.toLocaleString('en-IN', {maximumFractionDigits:0}) : value}</td>`;
+    body.appendChild(tr);
+  });
+
+  const mwFlag = document.getElementById('mwFlag');
+  if (r.basicBelowMinWage_flagged) {
+    mwFlag.textContent = 'Basic pinned to state minimum wage';
+    mwFlag.className = 'flag warn';
+    mwFlag.classList.remove('hidden');
+  } else {
+    mwFlag.classList.add('hidden');
+  }
+
+  document.getElementById('assumptionNote').textContent =
+    `Basic = ${Math.round(cfg.basic_pct_of_remuneration*100)}% of Remuneration, floored at the ${state} minimum wage of ₹${minWage.toLocaleString('en-IN')}/mo. ` +
+    `Statutory bonus applies only when Basic is below ₹${cfg.bonus_wage_ceiling_monthly.toLocaleString('en-IN')}/mo. ` +
+    `ESIC applies only when gross (Basic+HRA+Other) is at or below ₹${cfg.esic_wage_ceiling_monthly.toLocaleString('en-IN')}/mo. ` +
+    `All rates are editable by an admin.`;
+
+  document.getElementById('resultCard').classList.remove('hidden');
+};
+
+// ---------- INIT ----------
+(async () => {
+  const { data: { session } } = await supa.auth.getSession();
+  if (session) onAuthed();
+})();
+</script>
+
+</body>
+</html>

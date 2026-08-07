@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Admin — Wage Code Config</title>
+<link rel="stylesheet" href="styles.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+</head>
+<body>
+
+<div id="authView" class="auth-box">
+  <h1>Admin sign in</h1>
+  <label>Email</label>
+  <input id="loginEmail" type="email" />
+  <label style="margin-top:12px;">Password</label>
+  <input id="loginPassword" type="password" />
+  <button id="loginBtn" style="width:100%;">Sign in</button>
+  <div id="authError" class="error-msg"></div>
+</div>
+
+<div id="deniedView" class="auth-box hidden">
+  <h1>Not an admin</h1>
+  <p class="note">This account can sign in but doesn't have admin rights. Ask an existing admin to enable it for you in Supabase → Table Editor → profiles → is_admin.</p>
+  <a href="index.html">← Back to calculator</a>
+</div>
+
+<div id="appView" class="hidden">
+  <div class="topbar">
+    <div>
+      <h1>Admin panel</h1>
+      <div class="sub">Edit minimum wage rates and formula constants — changes apply live to the calculator</div>
+    </div>
+    <nav>
+      <a href="index.html">Calculator</a>
+      <a href="#" id="logoutLink">Sign out</a>
+    </nav>
+  </div>
+
+  <div class="wrap">
+    <div class="card">
+      <h2>State minimum wages (₹ / month)</h2>
+      <div id="mwRows"></div>
+      <div class="admin-row" style="margin-top:14px;">
+        <input id="newStateName" placeholder="New state name" />
+        <input id="newStateMW" type="number" placeholder="Monthly MW ₹" />
+        <button id="addStateBtn">Add state</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Formula constants</h2>
+      <div id="cfgRows"></div>
+      <p class="note">Rates are stored as decimals (e.g. 0.12 = 12%). Ceilings are in ₹/month.</p>
+    </div>
+
+    <div id="saveMsg" class="note"></div>
+  </div>
+</div>
+
+<script>
+const supa = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+const authView = document.getElementById('authView');
+const deniedView = document.getElementById('deniedView');
+const appView = document.getElementById('appView');
+const authError = document.getElementById('authError');
+const saveMsg = document.getElementById('saveMsg');
+
+document.getElementById('loginBtn').onclick = async () => {
+  authError.textContent = '';
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const { error } = await supa.auth.signInWithPassword({ email, password });
+  if (error) { authError.textContent = error.message; return; }
+  init();
+};
+
+document.getElementById('logoutLink').onclick = async (e) => {
+  e.preventDefault();
+  await supa.auth.signOut();
+  location.reload();
+};
+
+async function init() {
+  const { data: { user } } = await supa.auth.getUser();
+  if (!user) return;
+  const { data: profile } = await supa.from('profiles').select('is_admin').eq('id', user.id).single();
+
+  authView.classList.add('hidden');
+  if (!profile || !profile.is_admin) {
+    deniedView.classList.remove('hidden');
+    return;
+  }
+  appView.classList.remove('hidden');
+  await loadMW();
+  await loadConfig();
+}
+
+async function loadMW() {
+  const { data } = await supa.from('mw_rates').select('*').order('state');
+  const container = document.getElementById('mwRows');
+  container.innerHTML = '';
+  data.forEach(row => {
+    const div = document.createElement('div');
+    div.className = 'admin-row';
+    div.innerHTML = `
+      <span>${row.state}</span>
+      <input type="number" value="${row.monthly_mw}" data-state="${row.state}" class="mwValue" />
+      <button data-state="${row.state}" class="saveMwBtn">Save</button>
+    `;
+    container.appendChild(div);
+  });
+  container.querySelectorAll('.saveMwBtn').forEach(btn => {
+    btn.onclick = async () => {
+      const state = btn.dataset.state;
+      const input = container.querySelector(`.mwValue[data-state="${state}"]`);
+      const { error } = await supa.from('mw_rates')
+        .update({ monthly_mw: parseFloat(input.value), updated_at: new Date().toISOString() })
+        .eq('state', state);
+      flash(error ? 'Error: ' + error.message : `${state} minimum wage updated.`);
+    };
+  });
+}
+
+document.getElementById('addStateBtn').onclick = async () => {
+  const state = document.getElementById('newStateName').value.trim();
+  const mw = parseFloat(document.getElementById('newStateMW').value);
+  if (!state || isNaN(mw)) { flash('Enter a state name and a numeric minimum wage.'); return; }
+  const { error } = await supa.from('mw_rates').insert({ state, monthly_mw: mw });
+  if (error) flash('Error: ' + error.message);
+  else {
+    document.getElementById('newStateName').value = '';
+    document.getElementById('newStateMW').value = '';
+    flash(`${state} added.`);
+    loadMW();
+  }
+};
+
+async function loadConfig() {
+  const { data } = await supa.from('formula_config').select('*').order('key');
+  const container = document.getElementById('cfgRows');
+  container.innerHTML = '';
+  data.forEach(row => {
+    const div = document.createElement('div');
+    div.className = 'admin-row';
+    div.innerHTML = `
+      <span>${row.label || row.key}</span>
+      <input type="number" step="0.0001" value="${row.value}" data-key="${row.key}" class="cfgValue" />
+      <button data-key="${row.key}" class="saveCfgBtn">Save</button>
+    `;
+    container.appendChild(div);
+  });
+  container.querySelectorAll('.saveCfgBtn').forEach(btn => {
+    btn.onclick = async () => {
+      const key = btn.dataset.key;
+      const input = container.querySelector(`.cfgValue[data-key="${key}"]`);
+      const { error } = await supa.from('formula_config')
+        .update({ value: parseFloat(input.value), updated_at: new Date().toISOString() })
+        .eq('key', key);
+      flash(error ? 'Error: ' + error.message : `${key} updated.`);
+    };
+  });
+}
+
+function flash(msg) {
+  saveMsg.textContent = msg;
+  setTimeout(() => saveMsg.textContent = '', 3500);
+}
+
+(async () => {
+  const { data: { session } } = await supa.auth.getSession();
+  if (session) init();
+})();
+</script>
+
+</body>
+</html>
