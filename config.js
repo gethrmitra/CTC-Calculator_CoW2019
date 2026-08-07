@@ -2,5 +2,5 @@
 // PASTE YOUR SUPABASE PROJECT DETAILS HERE
 // Find them in: Supabase Dashboard → Project Settings → API
 // ============================================================
-window.SUPABASE_URL = "https://YOUR-PROJECT-REF.supabase.co";
-window.SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
+window.SUPABASE_URL = "https://eklmbuekfswnbvghnovl.supabase.co";
+window.SUPABASE_ANON_KEY = "sb_publishable_rFegTn39uDgvTwu2Sbo52w_zNZAnhBr";
