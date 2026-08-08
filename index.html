@@ -1,213 +1,1158 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>CTC Calculator — Wage Code</title>
-<link rel="stylesheet" href="styles.css" />
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js"></script>
-<script src="wage-logic.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Salary Structure &amp; Candidate Database</title>
+<style>
+  :root{
+    --ink:#1c2530; --ink-soft:#5b6b7a; --paper:#f4f6f8; --card:#ffffff; --line:#dfe5ea;
+    --navy:#1f3a5f; --navy-deep:#152a45; --teal:#0f7a72; --teal-soft:#e5f3f1;
+    --amber:#b3781c; --amber-soft:#fbf1e2; --red:#b3402f; --red-soft:#fbeae7;
+    --violet:#5b4b9e; --violet-soft:#efeafb;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--paper); color:var(--ink); font-family:"Segoe UI", Roboto, Arial, sans-serif; font-size:14px; line-height:1.45; }
+  header.app-header{ background:var(--navy-deep); color:#fff; padding:16px 28px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+  header.app-header h1{ font-size:17px; margin:0; font-weight:600; }
+  header.app-header .sub{ font-size:11.5px; color:#b9c6d6; margin-top:2px; }
+  nav.tabs{ display:flex; gap:6px; flex-wrap:wrap; }
+  nav.tabs button{ background:transparent; border:1px solid rgba(255,255,255,.25); color:#dbe4ee; padding:7px 13px; border-radius:6px; cursor:pointer; font-size:12.5px; font-weight:600; }
+  nav.tabs button.active{ background:var(--teal); border-color:var(--teal); color:#fff; }
+  nav.tabs button:hover:not(.active){ background:rgba(255,255,255,.08); }
+
+  main{ max-width:1340px; margin:0 auto; padding:22px 24px 60px; }
+  .page{ display:none; } .page.active{ display:block; }
+
+  .grid{ display:grid; grid-template-columns: 380px 1fr; gap:20px; align-items:start; }
+  @media (max-width: 920px){ .grid{ grid-template-columns:1fr; } }
+
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin-bottom:18px; }
+  .card h2{ font-size:13px; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-soft); margin:0 0 14px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:8px; display:flex; justify-content:space-between; align-items:center;}
+  label{ display:block; font-size:11.5px; font-weight:600; color:var(--ink-soft); margin:10px 0 4px; }
+  label:first-of-type{ margin-top:0; }
+  input[type=text], input[type=number], input[type=date], select{ width:100%; padding:7px 9px; border:1px solid var(--line); border-radius:6px; font-size:13px; background:#fbfcfd; color:var(--ink); font-family:inherit; }
+  input:focus, select:focus{ outline:2px solid var(--teal); outline-offset:1px; border-color:var(--teal); }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .row3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+  .hint{ font-size:11px; color:#8592a0; margin-top:3px; }
+  .chk{ display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:var(--ink-soft); margin-top:10px;}
+  .chk input{ width:auto; }
+
+  .btn{ display:inline-block; background:var(--teal); color:#fff; border:none; padding:9px 15px; border-radius:6px; font-weight:700; font-size:12.5px; cursor:pointer; }
+  .btn:hover{ background:#0c645d; }
+  .btn.secondary{ background:transparent; color:var(--navy); border:1px solid var(--line); }
+  .btn.secondary:hover{ background:#eef2f5; }
+  .btn.danger{ background:transparent; color:var(--red); border:1px solid var(--red-soft); }
+  .btn.danger:hover{ background:var(--red-soft); }
+  .btn.small{ padding:4px 9px; font-size:11.5px; }
+  .btn[disabled]{ opacity:.5; cursor:not-allowed; }
+
+  .banner{ border-radius:8px; padding:11px 14px; font-size:12.5px; margin-bottom:16px; }
+  .banner.ok{ background:var(--teal-soft); color:#0c554f; border:1px solid #c7e6e2; }
+  .banner.warn{ background:var(--amber-soft); color:#7a5011; border:1px solid #edd7ad; }
+  .banner.bad{ background:var(--red-soft); color:#7a2c1f; border:1px solid #edc4bb; }
+  .banner b{ font-weight:700; }
+
+  table.calc{ width:100%; border-collapse:collapse; font-size:13px; }
+  table.calc th, table.calc td{ padding:6px 10px; border-bottom:1px solid var(--line); text-align:right; }
+  table.calc th:first-child, table.calc td:first-child{ text-align:left; }
+  table.calc thead th{ color:var(--ink-soft); font-size:10.5px; text-transform:uppercase; letter-spacing:.4px; border-bottom:2px solid var(--line); }
+  table.calc tbody tr.section td{ background:#f7f9fa; font-weight:700; color:var(--navy); padding-top:10px; }
+  table.calc tbody tr.subtotal td{ font-weight:700; border-top:1px dashed var(--line); }
+  table.calc tbody tr.total td{ font-weight:700; border-top:2px solid var(--ink); border-bottom:2px solid var(--ink); }
+  table.calc tbody tr.grand td{ font-weight:800; color:var(--teal); font-size:14px; }
+  .mono{ font-family:var(--mono); }
+  .cat-tag{ display:inline-block; font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; padding:1px 7px; border-radius:10px; margin-left:6px; }
+  .cat-earnings{ background:var(--teal-soft); color:#0c554f; }
+  .cat-excluded{ background:var(--amber-soft); color:#7a5011; }
+  .cat-reimb{ background:var(--violet-soft); color:#4a3c85; }
+  .cat-employer{ background:#eef1f3; color:#5b6b7a; }
+  .cat-benefit{ background:#e6f0fa; color:#2b5c8a; }
+
+  .kpis{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+  @media (max-width: 700px){ .kpis{ grid-template-columns:repeat(2,1fr);} }
+  .kpi{ background:var(--card); border:1px solid var(--line); border-radius:10px; padding:13px 15px; }
+  .kpi .label{ font-size:10.5px; text-transform:uppercase; letter-spacing:.4px; color:var(--ink-soft); font-weight:700; }
+  .kpi .value{ font-size:19px; font-weight:800; color:var(--navy); margin-top:4px; }
+  .kpi .value small{ font-size:11px; font-weight:600; color:var(--ink-soft); }
+
+  .toolbar{ display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
+  .toolbar input[type=text]{ max-width:280px; }
+
+  table.db{ width:100%; border-collapse:collapse; font-size:13px; background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  table.db th{ background:#eef2f5; text-align:left; padding:9px 11px; font-size:10.5px; text-transform:uppercase; letter-spacing:.4px; color:var(--ink-soft); border-bottom:1px solid var(--line); }
+  table.db td{ padding:9px 11px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  table.db tr:last-child td{ border-bottom:none; }
+  table.db tr:hover td{ background:#fafbfc; }
+  .pill{ display:inline-block; padding:2px 9px; border-radius:20px; font-size:11px; font-weight:700; }
+  .pill.y{ background:var(--teal-soft); color:#0c554f; } .pill.n{ background:#eef1f3; color:#5b6b7a; }
+  .empty{ text-align:center; color:var(--ink-soft); padding:50px 20px; background:var(--card); border:1px dashed var(--line); border-radius:10px; }
+
+  .modal-bg{ position:fixed; inset:0; background:rgba(15,25,35,.55); display:none; align-items:flex-start; justify-content:center; padding:40px 16px; overflow:auto; z-index:50; }
+  .modal-bg.show{ display:flex; }
+  .modal{ background:#fff; border-radius:12px; max-width:760px; width:100%; padding:24px 26px; }
+  .modal h3{ margin:0 0 4px; font-size:16px; } .modal .modal-sub{ color:var(--ink-soft); font-size:12px; margin-bottom:16px; }
+  .modal-close{ float:right; }
+
+  footer.note{ text-align:center; color:#93a0ac; font-size:11.5px; margin-top:30px; }
+  .assumption{ font-size:11px; color:#8592a0; margin-top:10px; border-top:1px dashed var(--line); padding-top:10px; }
+
+  table.mw{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  table.mw th{ background:#eef2f5; padding:7px 8px; font-size:10px; text-transform:uppercase; letter-spacing:.3px; color:var(--ink-soft); text-align:left; position:sticky; top:0; }
+  table.mw td{ padding:4px 6px; border-bottom:1px solid var(--line); }
+  table.mw input{ padding:5px 6px; font-size:12.5px; }
+  table.mw tr:hover td{ background:#fafbfc; }
+  .mw-scroll{ max-height:560px; overflow:auto; border:1px solid var(--line); border-radius:8px; }
+
+  .comp-card{ border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin-bottom:10px; background:#fbfcfd; position:relative; }
+  .comp-head{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .comp-head input[type=text]{ font-weight:700; min-width:160px; flex:1; }
+  .comp-head select{ max-width:190px; }
+  .comp-actions{ display:flex; gap:5px; margin-left:auto; }
+  .comp-fields{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px 12px; margin-top:10px; }
+  .comp-fields label{ margin:0 0 3px; }
+  .comp-note{ font-size:11px; color:#8592a0; margin-top:8px; }
+  .order-badge{ display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:5px; background:var(--navy); color:#fff; font-size:11px; font-weight:700; margin-right:2px;}
+  .config-actions{ display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+  .formula-box{ background:#f7f9fa; border:1px solid var(--line); border-radius:8px; padding:12px 14px; font-size:12.5px; margin-bottom:16px; }
+  .formula-box code{ background:#fff; border:1px solid var(--line); border-radius:4px; padding:1px 6px; font-family:var(--mono); font-size:12px; }
+  .group-label{ font-size:11px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.4px; margin:16px 0 8px; }
+  .group-label:first-child{ margin-top:0; }
+
+  /* Login gate */
+  #loginScreen{ position:fixed; inset:0; background:linear-gradient(160deg,#152a45,#1f3a5f); display:flex; align-items:center; justify-content:center; z-index:100; padding:20px; }
+  .login-card{ background:#fff; border-radius:14px; padding:36px 34px; width:100%; max-width:380px; box-shadow:0 20px 60px rgba(0,0,0,.35); }
+  .login-card h2{ font-size:18px; margin:0 0 4px; color:var(--ink); border:none; padding:0; text-transform:none; letter-spacing:0; }
+  .login-card .login-sub{ font-size:12.5px; color:var(--ink-soft); margin-bottom:20px; }
+  .login-card label{ margin-top:14px; }
+  .role-toggle{ display:flex; gap:8px; margin-top:6px; }
+  .role-toggle button{ flex:1; padding:9px; border-radius:6px; border:1px solid var(--line); background:#fbfcfd; font-size:12.5px; font-weight:700; color:var(--ink-soft); cursor:pointer; }
+  .role-toggle button.active{ background:var(--navy-deep); color:#fff; border-color:var(--navy-deep); }
+  .login-error{ color:var(--red); font-size:12px; margin-top:10px; min-height:16px; }
+  .login-card .btn{ width:100%; margin-top:16px; padding:11px; font-size:13px; }
+  .role-pill{ font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; padding:3px 10px; border-radius:20px; background:rgba(255,255,255,.15); color:#fff; margin-left:10px; }
+  .logout-btn{ background:transparent; border:1px solid rgba(255,255,255,.3); color:#dbe4ee; padding:7px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; }
+  .logout-btn:hover{ background:rgba(255,255,255,.1); }
+</style>
 </head>
 <body>
 
-<!-- ===================== LOGIN VIEW ===================== -->
-<div id="authView" class="auth-box">
-  <h1>Sign in</h1>
-  <p class="note">Use your registered email to access the CTC calculator.</p>
-  <label>Email</label>
-  <input id="loginEmail" type="email" placeholder="you@company.com" />
-  <label style="margin-top:12px;">Password</label>
-  <input id="loginPassword" type="password" placeholder="••••••••" />
-  <button id="loginBtn" style="width:100%;">Sign in</button>
-  <button id="signupBtn" class="secondary" style="width:100%;">Create account</button>
-  <div id="authError" class="error-msg"></div>
+<div id="loginScreen">
+  <div class="login-card">
+    <h2>Salary Structure &amp; Candidate Database</h2>
+    <div class="login-sub">Sign in to continue</div>
+    <label>I am logging in as</label>
+    <div class="role-toggle">
+      <button type="button" id="roleBtnUser" class="active" onclick="setLoginRole('user')">User</button>
+      <button type="button" id="roleBtnAdmin" onclick="setLoginRole('admin')">Admin</button>
+    </div>
+    <label for="loginPassword">Access Code</label>
+    <input type="password" id="loginPassword" placeholder="Enter access code" onkeydown="if(event.key==='Enter') attemptLogin()">
+    <div class="login-error" id="loginError"></div>
+    <button class="btn" id="loginSubmitBtn" onclick="attemptLogin()" disabled>Connecting…</button>
+    <div class="hint" style="margin-top:14px;">Users can run the calculator and manage the candidate database. Admins can additionally edit Minimum Wages and Formulas.</div>
+  </div>
 </div>
 
-<!-- ===================== APP VIEW ===================== -->
-<div id="appView" class="hidden">
-  <div class="topbar">
-    <div>
-      <h1>CTC Calculator</h1>
-      <div class="sub">Wage Code structure — Basic, Remuneration, CTC & Cash-in-Hand</div>
-    </div>
-    <nav>
-      <a href="admin.html" id="adminLink" class="hidden">Admin panel</a>
-      <a href="#" id="logoutLink">Sign out</a>
-    </nav>
+<div id="appRoot" style="display:none;">
+<header class="app-header">
+  <div>
+    <h1>Salary Structure &amp; Candidate Database <span class="role-pill" id="roleBadge"></span></h1>
+    <div class="sub">CTC calculator segregated by Wage-Code component category</div>
   </div>
+  <nav class="tabs">
+    <button id="tabBtnCalc" class="active" onclick="showPage('calc')">Salary Calculator</button>
+    <button id="tabBtnMw" onclick="showPage('mw')">Minimum Wages</button>
+    <button id="tabBtnComp" onclick="showPage('comp')">Components &amp; Formulas</button>
+    <button id="tabBtnDb" onclick="showPage('db')">Candidate Database</button>
+    <button class="logout-btn" onclick="logout()">Log out</button>
+  </nav>
+</header>
 
-  <div class="wrap">
-    <div class="card">
-      <h2>Inputs</h2>
-      <div class="field-grid">
-        <div>
-          <label>State (for statutory minimum wage)</label>
-          <select id="stateSelect"></select>
+<main>
+
+  <!-- ===================== PAGE 1: CALCULATOR ===================== -->
+  <section id="page-calc" class="page active">
+    <div class="grid">
+      <div>
+        <div class="card">
+          <h2>Wage &amp; Structure Inputs</h2>
+          <label>State / Zone</label>
+          <select id="inState"></select>
+          <label>Employee Category</label>
+          <select id="inCategory">
+            <option value="UNSKILLED">Unskilled</option>
+            <option value="SEMISKILLED">Semi-Skilled</option>
+            <option value="SKILLED" selected>Skilled</option>
+            <option value="HIGHLYSKILLED">Highly Skilled</option>
+          </select>
+          <div class="row2">
+            <div><label>PF Applicability</label><select id="inPF"><option value="Y" selected>Yes</option><option value="N">No</option></select></div>
+            <div><label>Metro / Non-Metro</label><select id="inMetro"><option value="Y">Metro</option><option value="N" selected>Non-Metro</option></select></div>
+          </div>
+          <label>PF Wage Basis</label>
+          <select id="inPFBasis">
+            <option value="15K" selected>Capped at PF ceiling</option>
+            <option value="ACTUAL">On actual Basic (no ceiling)</option>
+          </select>
+          <label>Employee Type</label>
+          <select id="inEmpType">
+            <option value="REGULAR" selected>Regular Employee</option>
+            <option value="CONSULTANT">Consultant / Retainer</option>
+          </select>
+          <div class="row2">
+            <div><label>Current Wage (₹ / month)</label><input type="number" id="inWage" value="50000" min="0" step="500"></div>
+            <div><label>Hike / Increment (%)</label><input type="number" id="inHike" value="0" min="0" step="0.5"></div>
+          </div>
+          <label>Incentive / PLB (%)</label>
+          <input type="number" id="inIncentive" value="0" min="0" step="0.5">
+          <div class="hint" id="incentiveBaseHint">Added on top of CTC — not part of the statutory Remuneration formula.</div>
         </div>
-        <div>
-          <label>Monthly HRA (₹)</label>
-          <input id="hraInput" type="number" min="0" value="0" />
-        </div>
-        <div>
-          <label>Monthly Other Excluded Allowance (₹)</label>
-          <input id="otherInput" type="number" min="0" value="0" />
+
+        <div class="card">
+          <h2>Candidate Details <span style="font-weight:400;color:#8592a0;">(optional — for saving)</span></h2>
+          <label>Employee Name</label>
+          <input type="text" id="inName" placeholder="e.g. Rahul Sharma">
+          <div class="row2">
+            <div><label>Department</label><input type="text" id="inDept" placeholder="e.g. Operations"></div>
+            <div><label>Designation</label><input type="text" id="inDesig" placeholder="e.g. Executive"></div>
+          </div>
+          <div class="row2">
+            <div><label>Job Grade</label><input type="text" id="inGrade" placeholder="e.g. G3"></div>
+            <div><label>Date of Joining</label><input type="date" id="inDoj"></div>
+          </div>
+          <div style="margin-top:16px;"><button class="btn" onclick="saveCandidate()">Save to Candidate Database</button></div>
+          <div id="saveMsg" class="hint" style="margin-top:8px;"></div>
         </div>
       </div>
-      <button id="calcBtn">Calculate</button>
+
+      <div>
+        <div id="mwBanner"></div>
+        <div class="kpis">
+          <div class="kpi"><div class="label">Total Remuneration</div><div class="value" id="kpiR">–</div></div>
+          <div class="kpi"><div class="label">Basic</div><div class="value" id="kpiBasic">–</div></div>
+          <div class="kpi"><div class="label">CTC</div><div class="value" id="kpiCTC">–</div></div>
+          <div class="kpi"><div class="label">Cash in Hand (CIH)</div><div class="value" id="kpiCIH">–</div></div>
+        </div>
+        <div class="formula-box">
+          <b>Formula used:</b><br>
+          <code>Basic</code> = higher of (Basic % × Remuneration) or (State Minimum Wage)<br>
+          <code>Remuneration</code> = Basic + Earnings + Excluded Allowance + Reimbursements + Employer PF<br>
+          <code>CTC</code> = Remuneration + Employer ESI + Gratuity + Benefits<br>
+          <code>Cash in Hand (CIH)</code> = Remuneration − Employer PF − Employee PF − Employee ESI
+        </div>
+        <div class="card">
+          <h2>Salary Breakup</h2>
+          <table class="calc" id="breakupTable">
+            <thead><tr><th>Component</th><th>Monthly (₹)</th><th>Annual (₹)</th></tr></thead>
+            <tbody id="breakupBody"></tbody>
+          </table>
+          <div class="assumption">
+            Components are grouped exactly as in your reference workbook: <b>Earnings</b> (wage-code Included),
+            <b>Excluded Allowance</b> (statutory exclusions like HRA/LTA/Bonus, plus the Residual Allowance balancing
+            figure), <b>Reimbursements</b>, <b>Employer Contributions</b>, and <b>Benefits</b>. Every component
+            still draws from the same wage-balance waterfall so nothing is double-counted — edit categories, formulas
+            and amounts under <b>Components &amp; Formulas</b>.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== PAGE 2: MINIMUM WAGES ===================== -->
+  <section id="page-mw" class="page">
+    <div class="card">
+      <h2>State-wise Minimum Wages
+        <span style="font-weight:400;"><button class="btn small" onclick="addMwRow()">+ Add State</button></span>
+      </h2>
+      <div class="config-actions">
+        <button class="btn" onclick="saveMwTable()">Save Changes</button>
+        <button class="btn secondary" onclick="resetMwTable()">Reset to Original Data</button>
+        <input type="text" id="mwSearch" placeholder="Filter states…" style="max-width:220px;" oninput="renderMwEditor()">
+      </div>
+      <div class="mw-scroll">
+        <table class="mw">
+          <thead><tr>
+            <th style="min-width:220px;">State / Zone</th>
+            <th>Unskilled (₹)</th><th>Semi-Skilled (₹)</th><th>Skilled (₹)</th><th>Highly Skilled (₹)</th><th></th>
+          </tr></thead>
+          <tbody id="mwEditorBody"></tbody>
+        </table>
+      </div>
+      <div id="mwSaveMsg" class="hint" style="margin-top:10px;"></div>
+      <div class="assumption">Leave a category cell blank if that state hasn't published a rate for it — the calculator will fall back to Basic % of Remuneration in that case.</div>
+    </div>
+  </section>
+
+  <!-- ===================== PAGE 3: COMPONENTS & FORMULAS ===================== -->
+  <section id="page-comp" class="page">
+    <div class="card">
+      <h2>Basic, PF, Bonus, ESI &amp; Gratuity Settings</h2>
+      <div class="config-actions">
+        <button class="btn" onclick="saveComponentConfig()">Save Changes</button>
+        <button class="btn secondary" onclick="resetComponentConfig()">Reset to Original Formulas</button>
+      </div>
+      <div class="row3">
+        <div><label>Basic Wage % of Remuneration</label><input type="number" id="cfgBasicPercent" step="0.5"></div>
+        <div><label>PF Ceiling (₹)</label><input type="number" id="cfgPfCeiling" step="500"></div>
+        <div><label>Incentive/PLB calculated on</label>
+          <select id="cfgIncentiveBase"><option value="remuneration">Remuneration</option><option value="basic">Basic</option><option value="ctc">CTC</option></select>
+        </div>
+      </div>
+      <div class="row3" style="margin-top:4px;">
+        <div><label>Employer PF %</label><input type="number" id="cfgEmployerPF" step="0.5"></div>
+        <div><label>Employee PF %</label><input type="number" id="cfgEmployeePF" step="0.5"></div>
+        <div></div>
+      </div>
+      <div class="row3" style="margin-top:4px;">
+        <div><label>Bonus applies if Basic ≤ (₹)</label><input type="number" id="cfgBonusThreshold" step="500"></div>
+        <div><label>Statutory Bonus %</label><input type="number" id="cfgBonusPercent" step="0.01"></div>
+        <div></div>
+      </div>
+      <div class="row3" style="margin-top:4px;">
+        <div><label>Employer ESI applies if Basic ≤ (₹)</label><input type="number" id="cfgErEsicThreshold" step="500"></div>
+        <div><label>Employer ESI % (of Basic)</label><input type="number" id="cfgErEsicPercent" step="0.05"></div>
+        <div><label>Gratuity % (of Basic)</label><input type="number" id="cfgGratuity" step="0.01"></div>
+      </div>
+      <div class="row3" style="margin-top:4px;">
+        <div><label>Employee ESI applies if Basic &lt; (₹)</label><input type="number" id="cfgEeEsicThreshold" step="500"></div>
+        <div><label>Employee ESI % (of Basic)</label><input type="number" id="cfgEeEsicPercent" step="0.05"></div>
+        <div></div>
+      </div>
+      <div class="hint">Employer/Employee ESI here follows your reference workbook's rule of being based on Basic (not Gross). Employee PF/ESI are this tool's own addition, needed to compute Cash in Hand — mirrored off the Employer PF/ESI rules; adjust if your policy differs.</div>
     </div>
 
-    <div class="card hidden" id="resultCard">
-      <h2>Monthly structure <span id="mwFlag" class="flag hidden"></span></h2>
-      <table>
-        <tbody id="resultBody"></tbody>
-      </table>
-      <p class="note" id="assumptionNote"></p>
+    <div class="card">
+      <h2>Salary Components — Waterfall <span style="font-weight:400;"><button class="btn small" onclick="addEarning()">+ Add Component</button></span></h2>
+      <div class="hint" style="margin-bottom:10px;">Computed in order after Basic, Employer PF and Bonus are set aside from Remuneration. Each component is tagged with its Wage-Code category (Earnings / Excluded Allowance / Reimbursement) — that tag drives which section it appears in on the Salary Calculator. Use ↑↓ to reorder — order affects how much balance is left for later components. Residual Allowance should normally stay last.</div>
+      <div id="earningsList"></div>
     </div>
-  </div>
-</div>
+
+    <div class="card">
+      <h2>Benefits — Fixed Additions to CTC <span style="font-weight:400;"><button class="btn small" onclick="addBenefit()">+ Add Benefit</button></span></h2>
+      <div class="hint" style="margin-bottom:10px;">Company-provided benefits (insurance, meal cards, accommodation, transport, etc.) added directly to CTC — these are not part of Remuneration and are not paid out as cash.</div>
+      <div id="benefitsList"></div>
+    </div>
+  </section>
+
+  <!-- ===================== PAGE 4: CANDIDATE DATABASE ===================== -->
+  <section id="page-db" class="page">
+    <div class="toolbar">
+      <input type="text" id="dbSearch" placeholder="Search name, department, designation, state…" oninput="renderDb()">
+      <select id="dbSort" onchange="renderDb()">
+        <option value="new">Newest first</option><option value="old">Oldest first</option>
+        <option value="name">Name (A–Z)</option><option value="ctc">CTC (high–low)</option>
+      </select>
+      <span style="flex:1"></span>
+      <button class="btn secondary small" onclick="exportCsv()">Export CSV</button>
+      <button class="btn danger small" onclick="clearAll()">Clear all</button>
+    </div>
+    <div id="dbWrap"></div>
+  </section>
+
+</main>
+
+<div class="modal-bg" id="modalBg" onclick="if(event.target===this) closeModal()"><div class="modal" id="modalBody"></div></div>
+<footer class="note">Data is stored locally to your account for this tool — nothing is shared with other users.</footer>
+</div> <!-- /appRoot -->
 
 <script>
-const supa = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
-
-const authView = document.getElementById('authView');
-const appView = document.getElementById('appView');
-const authError = document.getElementById('authError');
-
-let cfg = {};       // formula_config as {key: value}
-let mwRates = {};   // {state: monthly_mw}
-
-// ---------- AUTH ----------
-document.getElementById('loginBtn').onclick = async () => {
-  authError.textContent = '';
-  const email = document.getElementById('loginEmail').value.trim();
-  const password = document.getElementById('loginPassword').value;
-  const { error } = await supa.auth.signInWithPassword({ email, password });
-  if (error) authError.textContent = error.message;
-  else onAuthed();
-};
-
-document.getElementById('signupBtn').onclick = async () => {
-  authError.textContent = '';
-  const email = document.getElementById('loginEmail').value.trim();
-  const password = document.getElementById('loginPassword').value;
-  if (!email || password.length < 6) {
-    authError.textContent = 'Enter an email and a password (6+ characters).';
-    return;
+/* ============================================================
+   STORAGE ABSTRACTION
+   ============================================================ */
+const Store = {
+  mode: (typeof window.storage !== 'undefined') ? 'claude' : (typeof localStorage !== 'undefined' ? 'local' : 'memory'),
+  _mem: {},
+  async get(key){
+    if(this.mode==='claude'){ try{ return await window.storage.get(key, false); }catch(e){ return null; } }
+    if(this.mode==='local'){ try{ const v = localStorage.getItem('sst:'+key); return v!==null ? {value:v} : null; }catch(e){ return null; } }
+    return (key in this._mem) ? {value:this._mem[key]} : null;
+  },
+  async set(key, value){
+    if(this.mode==='claude'){ try{ return await window.storage.set(key, value, false); }catch(e){ return null; } }
+    if(this.mode==='local'){ try{ localStorage.setItem('sst:'+key, value); return {value}; }catch(e){ return null; } }
+    this._mem[key] = value; return {value};
   }
-  const { error } = await supa.auth.signUp({ email, password });
-  if (error) authError.textContent = error.message;
-  else authError.textContent = 'Account created. Check your email if confirmation is required, then sign in.';
 };
 
-document.getElementById('logoutLink').onclick = async (e) => {
-  e.preventDefault();
-  await supa.auth.signOut();
-  location.reload();
+/* ============================================================
+   SHARED STORE (Supabase) — used for Minimum Wages, Formulas,
+   and login passcodes, so an Admin's changes are visible to
+   every login instantly. Candidates stay in Store (above),
+   personal to each device.
+   ============================================================ */
+const SUPABASE_URL = 'https://eklmbuekfswnbvghnovl.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_rFegTn39uDgvTwu2Sbo52w_zNZAnhBr';
+
+const SharedStore = {
+  async get(key){
+    try{
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/app_settings?key=eq.${key}&select=value`, {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+      });
+      if(!res.ok) return null;
+      const rows = await res.json();
+      return (rows && rows.length) ? rows[0].value : null;
+    }catch(e){ console.warn('SharedStore.get failed, using local fallback', e); return null; }
+  },
+  async set(key, value){
+    try{
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/app_settings?key=eq.${key}`, {
+        method: 'PATCH',
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal'
+        },
+        body: JSON.stringify({ value })
+      });
+      return res.ok;
+    }catch(e){ console.warn('SharedStore.set failed', e); return false; }
+  }
 };
 
-async function onAuthed() {
-  authView.classList.add('hidden');
-  appView.classList.remove('hidden');
-  await loadConfig();
-  await checkAdmin();
+/* ============================================================
+   DEFAULT MINIMUM WAGE TABLE
+   ============================================================ */
+const MW_DEFAULT = [
+["Andhra Pradesh Zone I",12410,12812,13432,14267],["Andhra Pradesh Zone II",12080,12596,13012,13848],
+["Andhra Pradesh Zone III",12080,12596,13012,13848],["Arunachal Pradesh Zone-I",6000,6300,6600,null],
+["Arunachal Pradesh Zone-II",6600,6900,7200,null],["Assam",10344,12025,15032,19326],
+["Bihar",11128,11544,14066,17160],["Chhattisgarh Zone I",11176,11826,12606,13386],
+["Chhattisgarh Zone II",10916,11566,12346,13126],["Chhattisgarh Zone III",10656,11306,12086,12866],
+["Delhi",19846,21813,23905,null],["Goa Zone I",14300,15886,17316,null],["Goa Zone II",14170,15756,17186,null],
+["Gujarat-Zone I",13013,13273,13585,null],["Gujarat-Zone II",12727,13013,13273,null],
+["Haryana Class A",11275,11838,13052,14390],["Haryana Class B",11275,12430,13704,14390],
+["Himachal Pradesh",11820,13170,13620,14250],["Jharkhand Area A",13050,13692,18042,20802],
+["Jharkhand Area B",12437,13050,17205,19854],["Jharkhand Area C",11851,12437,16396,18906],
+["Karnataka Zone I",15701,16860,18134,19537],["Karnataka Zone II",15149,16253,17467,18802],
+["Karnataka Zone III",14624,15675,16831,18103],["Karnataka Zone IV",14124,15125,16226,17437],
+["Kerala",null,null,null,null],["Madhya Pradesh",12150,13146,14869,16494],
+["Maharashtra Zone-I",13635,14470,15246,null],["Maharashtra Zone-II",13039,13874,14650,null],
+["Maharashtra Zone-III",12442,13278,14054,null],["Manipur",12000,13200,14400,null],
+["Meghalaya",14066,15158,16224,17290],["Mizoram",10920,11960,14820,null],
+["Nagaland",5280,6300,7050,null],["Odisha",12012,13312,14612,15912],["Punjab",11390,12170,13067,14099],
+["Rajasthan",7410,7722,8034,9334],["Sikkim",13000,13520,13910,14690],
+["Tamil Nadu Zone-A",14004,14142,14193,14703],["Tamil Nadu Zone-B",13932,14066,14128,14641],
+["Tamil Nadu Zone-C",13854,13993,14066,14577],["Tamil Nadu Zone-D",13783,13932,14004,14527],
+["Telangana",null,null,null,null],["Tripura",8010,8787,9828,null],
+["Uttarakhand (Towns >1 Lakh population)",12539,13280,14023,null],
+["Uttarakhand (Remaining parts of the State)",12391,13110,13838,null],
+["Uttar Pradesh",11021,12123,13580,null],["West Bengal Zone A",10329,11363,12499,13748],
+["West Bengal Zone B",9760,10733,11807,12990]
+].map(r=>({state:r[0], unskilled:r[1], semiskilled:r[2], skilled:r[3], highlyskilled:r[4]}));
+
+const CAT_KEY = {UNSKILLED:'unskilled', SEMISKILLED:'semiskilled', SKILLED:'skilled', HIGHLYSKILLED:'highlyskilled'};
+const CAT_LABEL = {UNSKILLED:"Unskilled", SEMISKILLED:"Semi-Skilled", SKILLED:"Skilled", HIGHLYSKILLED:"Highly Skilled"};
+
+let MW_TABLE = JSON.parse(JSON.stringify(MW_DEFAULT));
+function getMW(state, category){
+  const row = MW_TABLE.find(r=>r.state===state);
+  if(!row) return null;
+  const v = row[CAT_KEY[category]];
+  return (v===null||v===undefined||v==='') ? null : Number(v);
 }
 
-async function checkAdmin() {
-  const { data: { user } } = await supa.auth.getUser();
-  if (!user) return;
-  const { data } = await supa.from('profiles').select('is_admin').eq('id', user.id).single();
-  if (data && data.is_admin) {
-    document.getElementById('adminLink').classList.remove('hidden');
-  }
+/* ============================================================
+   DEFAULT CONFIG — segregated by Wage-Code category
+   ============================================================ */
+const CATEGORY_LABEL = {earnings:'Earnings', excluded_allowance:'Excluded Allowance', reimbursement:'Reimbursement'};
+const CATEGORY_TAGCLASS = {earnings:'cat-earnings', excluded_allowance:'cat-excluded', reimbursement:'cat-reimb'};
+
+function defaultConfig(){
+  return {
+    basicPercent: 50,
+    pfCeiling: 15000,
+    employerPFPercent: 12,
+    employeePFPercent: 12,
+    bonusThreshold: 21000,
+    bonusPercent: 8.33,
+    employerEsicThreshold: 21000,
+    employerEsicPercent: 3.25,
+    employeeEsicThreshold: 21000,
+    employeeEsicPercent: 0.75,
+    gratuityPercent: 4.81,
+    incentiveBase: 'remuneration',
+    waterfall: [
+      {id:'da', name:'Dearness Allowance', category:'earnings', type:'fixed', base:'wage', percent:0, nonMetroPercent:null, cap:null, capHigh:null, wageTier:null, minApplyWage:null, gated:false, thresholdPercent:null, fixedAmount:0},
+      {id:'ra', name:'Retaining Allowance', category:'earnings', type:'fixed', base:'wage', percent:0, nonMetroPercent:null, cap:null, capHigh:null, wageTier:null, minApplyWage:null, gated:false, thresholdPercent:null, fixedAmount:0},
+      {id:'sa', name:'Special Allowance', category:'earnings', type:'fixed', base:'wage', percent:0, nonMetroPercent:null, cap:null, capHigh:null, wageTier:null, minApplyWage:null, gated:false, thresholdPercent:null, fixedAmount:0},
+      {id:'cca', name:'CCA', category:'earnings', type:'fixed', base:'wage', percent:0, nonMetroPercent:null, cap:null, capHigh:null, wageTier:null, minApplyWage:null, gated:false, thresholdPercent:null, fixedAmount:0},
+      {id:'hra', name:'HRA', category:'excluded_allowance', type:'percent', base:'basic', percent:50, nonMetroPercent:40, cap:null, capHigh:null, wageTier:null, minApplyWage:null, gated:false, thresholdPercent:null, fixedAmount:0},
+      {id:'ot', name:'Overtime', category:'excluded_allowance', type:'fixed', base:'wage', percent:0, nonMetroPercent:null, cap:null, capHigh:null, wageTier:null, minApplyWage:null, gated:false, thresholdPercent:null, fixedAmount:0},
+      {id:'comm', name:'Commission', category:'excluded_allowance', type:'fixed', base:'wage', percent:0, nonMetroPercent:null, cap:null, capHigh:null, wageTier:null, minApplyWage:null, gated:false, thresholdPercent:null, fixedAmount:0},
+      {id:'lta', name:'LTA', category:'excluded_allowance', type:'percent', base:'basic', percent:8.3333, nonMetroPercent:null, cap:null, capHigh:null, wageTier:null, minApplyWage:100000, gated:false, thresholdPercent:null, fixedAmount:0},
+      {id:'conv', name:'Conveyance Reimbursement', category:'reimbursement', type:'percent', base:'wage', percent:10, nonMetroPercent:null, cap:null, capHigh:null, wageTier:null, minApplyWage:null, gated:false, thresholdPercent:null, fixedAmount:0},
+      {id:'meal', name:'Food Coupons (Meal Vouchers)', category:'reimbursement', type:'fixed', base:'wage', percent:0, nonMetroPercent:null, cap:null, capHigh:null, wageTier:null, minApplyWage:null, gated:false, thresholdPercent:null, fixedAmount:0},
+      {id:'mobile', name:'Mobile Reimbursement', category:'reimbursement', type:'fixed', base:'wage', percent:0, nonMetroPercent:null, cap:null, capHigh:null, wageTier:null, minApplyWage:null, gated:false, thresholdPercent:null, fixedAmount:0},
+      {id:'internet', name:'Internet Reimbursement', category:'reimbursement', type:'fixed', base:'wage', percent:0, nonMetroPercent:null, cap:null, capHigh:null, wageTier:null, minApplyWage:null, gated:false, thresholdPercent:null, fixedAmount:0},
+      {id:'medical', name:'Medical Reimbursement', category:'reimbursement', type:'fixed', base:'wage', percent:0, nonMetroPercent:null, cap:null, capHigh:null, wageTier:null, minApplyWage:null, gated:false, thresholdPercent:null, fixedAmount:0},
+      {id:'ppa', name:'Professional Pursuit Allowance', category:'reimbursement', type:'fixed', base:'wage', percent:0, nonMetroPercent:null, cap:null, capHigh:null, wageTier:null, minApplyWage:null, gated:false, thresholdPercent:null, fixedAmount:0},
+      {id:'residual', name:'Residual Allowance', category:'excluded_allowance', type:'remainder', base:'wage', percent:0, nonMetroPercent:null, cap:null, capHigh:null, wageTier:null, minApplyWage:null, gated:false, thresholdPercent:null, fixedAmount:0}
+    ],
+    benefits: [
+      {id:'mediclaim', name:'Group Mediclaim', amount:0},
+      {id:'gpa', name:'Group Personal Accident Insurance', amount:0},
+      {id:'foodcoupon', name:'Food Coupons (Fixed Benefit)', amount:0},
+      {id:'accom', name:'Company Accommodation', amount:0},
+      {id:'transport', name:'Company Transport', amount:0}
+    ]
+  };
 }
+let CONFIG = defaultConfig();
+function newId(prefix){ return prefix+'_'+Date.now()+'_'+Math.random().toString(36).slice(2,6); }
+function numOrNull(v){ return (v===''||v===null||v===undefined) ? null : Number(v); }
 
-// ---------- LOAD CONFIG FROM SUPABASE ----------
-async function loadConfig() {
-  const { data: cfgRows, error: cfgErr } = await supa.from('formula_config').select('*');
-  const { data: mwRows, error: mwErr } = await supa.from('mw_rates').select('*').order('state');
+/* ============================================================
+   CALCULATION ENGINE
+   ============================================================ */
+function fmt(n){ if(n===null||n===undefined||isNaN(n)) return "–"; return "₹"+Math.round(n).toLocaleString('en-IN'); }
+function r0(n){ return Math.round(n); }
 
-  if (cfgErr || mwErr) {
-    alert('Could not load configuration. Check your Supabase setup / RLS policies.');
-    return;
-  }
-
-  cfg = {};
-  cfgRows.forEach(r => cfg[r.key] = Number(r.value));
-
-  mwRates = {};
-  mwRows.forEach(r => mwRates[r.state] = Number(r.monthly_mw));
-
-  const sel = document.getElementById('stateSelect');
-  sel.innerHTML = '';
-  mwRows.forEach(r => {
-    const opt = document.createElement('option');
-    opt.value = r.state;
-    opt.textContent = `${r.state} (₹${r.monthly_mw}/mo)`;
-    sel.appendChild(opt);
+function computeWaterfall(R, basic, metro, startingRemaining){
+  let remaining = startingRemaining;
+  const lines = [];
+  CONFIG.waterfall.forEach(comp=>{
+    let amt = 0;
+    if(comp.type==='fixed'){
+      amt = comp.fixedAmount||0;
+    } else if(comp.type==='remainder'){
+      amt = Math.max(0, remaining);
+    } else if(comp.type==='remainderCapped'){
+      const cap = (comp.cap===null||comp.cap===undefined) ? Infinity : comp.cap;
+      amt = Math.max(0, Math.min(remaining, cap));
+    } else if(comp.type==='percent'){
+      const baseVal = comp.base==='basic' ? basic : R;
+      let pct = comp.percent;
+      if(metro==='N' && comp.nonMetroPercent!==null && comp.nonMetroPercent!==undefined && comp.nonMetroPercent!=='') pct = comp.nonMetroPercent;
+      let cap = comp.cap;
+      if(comp.wageTier && R>=comp.wageTier && comp.capHigh!==null && comp.capHigh!==undefined && comp.capHigh!=='') cap = comp.capHigh;
+      let alloc = baseVal*pct/100;
+      if(cap!==null && cap!==undefined && cap!=='') alloc = Math.min(alloc, cap);
+      if(comp.minApplyWage && R < comp.minApplyWage){
+        amt = 0;
+      } else if(comp.gated){
+        const thPct = (comp.thresholdPercent!==null && comp.thresholdPercent!==undefined && comp.thresholdPercent!=='') ? comp.thresholdPercent : pct;
+        const gateVal = R*thPct/100;
+        amt = (remaining > gateVal) ? Math.max(0, Math.min(alloc, remaining)) : 0;
+      } else {
+        amt = Math.max(0, Math.min(alloc, remaining));
+      }
+    }
+    amt = r0(amt);
+    remaining -= amt;
+    lines.push({id:comp.id, name:comp.name, category:comp.category, amount:amt});
   });
+  return {lines, unallocated: Math.max(0, r0(remaining))};
 }
 
-// ---------- CALCULATE ----------
-document.getElementById('calcBtn').onclick = () => {
-  const state = document.getElementById('stateSelect').value;
-  const hra = parseFloat(document.getElementById('hraInput').value) || 0;
-  const otherAllowance = parseFloat(document.getElementById('otherInput').value) || 0;
-  const minWage = mwRates[state] || 0;
+function calculate(inputs){
+  const {state, category, pf, metro, pfBasis, empType, wage, hikePct, incentivePct} = inputs;
+  const MW = getMW(state, category);
+  const warnings = [];
+  const R = r0(wage * (1 + hikePct/100));
 
-  const r = computeStructure({ hra, otherAllowance, minWage, cfg });
+  if(MW===null) warnings.push("No published minimum wage data for this state/category — Basic will be based purely on "+CONFIG.basicPercent+"% of Remuneration.");
 
-  const rows = [
-    ['Basic', r.basic],
-    ['HRA', r.hra],
-    ['Other Excluded Allowance', r.otherAllowance],
-    ['Employer PF', r.employerPF],
-    [`Statutory Bonus ${r.bonusApplicable ? '' : '(not applicable — Basic ≥ ceiling)'}`, r.statutoryBonus],
-    ['— Remuneration', r.remuneration, true],
-    ['Employer ESIC' + (r.esicApplicable ? '' : ' (not applicable)'), r.employerESIC],
-    ['Gratuity', r.gratuity],
-    ['CTC (monthly)', r.ctc, true],
-    ['— Annual CTC', r.ctc * 12, true],
-    ['', ''],
-    ['Employee PF (deduction)', -r.employeePF],
-    ['Employee ESIC (deduction)' + (r.esicApplicable ? '' : ' (not applicable)'), -r.employeeESIC],
-    ['Cash in Hand (monthly)', r.cih, true],
-  ];
+  if(empType === 'CONSULTANT'){
+    const totalBenefits = CONFIG.benefits.reduce((s,b)=>s+(b.amount||0),0);
+    const incentive = r0(R*incentivePct/100);
+    warnings.push("Consultant/Retainer mode: no PF, Bonus, ESI or Gratuity is applied — the full amount is paid as a retainer fee. This is a simplified path added by this tool.");
+    return {
+      MW, R, basic:0, employerPF:0, bonus:0, waterfall:{lines:[],unallocated:0},
+      employerESI:0, gratuity:0, benefits:CONFIG.benefits.map(b=>({name:b.name,amount:0})), totalBenefits:0,
+      ctc:R+incentive, incentive, employeePF:0, employeeESI:0, cih:R,
+      warnings, retainer:true
+    };
+  }
 
-  const body = document.getElementById('resultBody');
-  body.innerHTML = '';
-  rows.forEach(([label, value, isTotal]) => {
-    if (label === '') { body.innerHTML += '<tr><td colspan="2">&nbsp;</td></tr>'; return; }
-    const tr = document.createElement('tr');
-    if (isTotal) tr.className = 'total';
-    tr.innerHTML = `<td>${label}</td><td>${typeof value === 'number' ? '₹' + value.toLocaleString('en-IN', {maximumFractionDigits:0}) : value}</td>`;
-    body.appendChild(tr);
-  });
+  const half = R*CONFIG.basicPercent/100;
+  const mwVal = MW===null ? 0 : MW;
+  const basic = r0(Math.max(half, mwVal));
+  if(MW!==null && R < MW){
+    warnings.push(`Offered Remuneration (₹${R.toLocaleString('en-IN')}) is below the applicable minimum wage (₹${MW.toLocaleString('en-IN')}). Basic has been raised to the Minimum Wage, which may leave little or nothing for other components.`);
+  }
 
-  const mwFlag = document.getElementById('mwFlag');
-  if (r.basicBelowMinWage_flagged) {
-    mwFlag.textContent = 'Basic pinned to state minimum wage';
-    mwFlag.className = 'flag warn';
-    mwFlag.classList.remove('hidden');
+  const pfWageBase = (pfBasis==='15K') ? Math.min(basic, CONFIG.pfCeiling) : basic;
+  const employerPF = (pf==='Y') ? r0(pfWageBase*CONFIG.employerPFPercent/100) : 0;
+  const employeePF = (pf==='Y') ? r0(pfWageBase*CONFIG.employeePFPercent/100) : 0;
+
+  const bonus = (basic <= CONFIG.bonusThreshold) ? r0(basic*CONFIG.bonusPercent/100) : 0;
+
+  const remainingAfterCore = R - basic - employerPF - bonus;
+  if(remainingAfterCore < 0){
+    warnings.push("Remuneration is too low to cover Basic, Employer PF and Statutory Bonus together — all other components have been floored at zero. Increase the offered wage.");
+  }
+
+  const waterfall = computeWaterfall(R, basic, metro, remainingAfterCore);
+  if(waterfall.unallocated > 0){
+    warnings.push(`₹${waterfall.unallocated.toLocaleString('en-IN')} of Remuneration is not absorbed by any component — check that Residual Allowance (or another "Full Remainder" component) is present and last in the list.`);
+  }
+
+  const waterfallTotal = waterfall.lines.reduce((s,l)=>s+l.amount,0);
+  const RCheck = basic + employerPF + bonus + waterfallTotal; // should equal R
+
+  const employerESI = (basic <= CONFIG.employerEsicThreshold) ? r0(basic*CONFIG.employerEsicPercent/100) : 0;
+  const gratuity = r0(basic*CONFIG.gratuityPercent/100);
+  const employeeESI = (basic < CONFIG.employeeEsicThreshold) ? r0(basic*CONFIG.employeeEsicPercent/100) : 0;
+
+  const benefits = CONFIG.benefits.map(b=>({name:b.name, amount:b.amount||0}));
+  const totalBenefits = benefits.reduce((s,b)=>s+b.amount,0);
+
+  const ctc = RCheck + employerESI + gratuity + totalBenefits;
+  const cih = RCheck - employerPF - employeePF - employeeESI;
+
+  const incentiveBaseVal = CONFIG.incentiveBase==='basic' ? basic : (CONFIG.incentiveBase==='ctc' ? ctc : RCheck);
+  const incentive = r0(incentiveBaseVal*incentivePct/100);
+
+  return {MW, R:RCheck, basic, employerPF, bonus, waterfall, employerESI, gratuity, benefits, totalBenefits, ctc, incentive, employeePF, employeeESI, cih, warnings, retainer:false};
+}
+
+/* ============================================================
+   CALCULATOR PAGE UI
+   ============================================================ */
+function populateStates(){
+  const sel = document.getElementById('inState');
+  const prev = sel.value;
+  sel.innerHTML = MW_TABLE.map(r=>`<option value="${escapeHtml(r.state)}">${escapeHtml(r.state)}</option>`).join('');
+  if(prev && MW_TABLE.some(r=>r.state===prev)) sel.value = prev;
+  else if(MW_TABLE.some(r=>r.state==='Gujarat-Zone I')) sel.value = 'Gujarat-Zone I';
+}
+function currentInputs(){
+  return {
+    state: document.getElementById('inState').value,
+    category: document.getElementById('inCategory').value,
+    pf: document.getElementById('inPF').value,
+    metro: document.getElementById('inMetro').value,
+    pfBasis: document.getElementById('inPFBasis').value,
+    empType: document.getElementById('inEmpType').value,
+    wage: parseFloat(document.getElementById('inWage').value)||0,
+    hikePct: parseFloat(document.getElementById('inHike').value)||0,
+    incentivePct: parseFloat(document.getElementById('inIncentive').value)||0
+  };
+}
+function runCalc(){
+  const inputs = currentInputs();
+  const c = calculate(inputs);
+  renderBanner(inputs, c);
+  renderKpis(c);
+  renderBreakup(c);
+  return {inputs, c};
+}
+function renderBanner(inputs, c){
+  const el = document.getElementById('mwBanner');
+  const mwText = c.MW ? "₹"+c.MW.toLocaleString('en-IN')+" / month" : "not published for this state/category";
+  let cls = 'ok';
+  let msg = `<b>${CAT_LABEL[inputs.category]}</b> minimum wage in <b>${escapeHtml(inputs.state)}</b>: <b>${mwText}</b>.`;
+  if(c.warnings.length){
+    cls = c.warnings.some(w=>w.includes('below the applicable'))? 'bad':'warn';
+    msg += '<br>' + c.warnings.map(w=>'⚠ '+w).join('<br>');
   } else {
-    mwFlag.classList.add('hidden');
+    msg += ' Remuneration comfortably clears the minimum wage floor.';
+  }
+  el.innerHTML = `<div class="banner ${cls}">${msg}</div>`;
+}
+function renderKpis(c){
+  document.getElementById('kpiR').innerHTML = fmt(c.R) + " <small>/mo</small>";
+  document.getElementById('kpiBasic').innerHTML = fmt(c.basic) + " <small>/mo</small>";
+  document.getElementById('kpiCTC').innerHTML = fmt(c.ctc + (c.incentive||0)) + " <small>/mo</small>";
+  document.getElementById('kpiCIH').innerHTML = fmt(c.cih) + " <small>/mo</small>";
+}
+function tag(cat){ return `<span class="cat-tag ${CATEGORY_TAGCLASS[cat]}">${CATEGORY_LABEL[cat]}</span>`; }
+
+function renderBreakup(c){
+  const rows = [];
+  if(c.retainer){
+    rows.push({label:'Retainer Fee', m:c.R, cls:'total'});
+    rows.push({label:'Incentive / PLB', m:c.incentive});
+    rows.push({label:'CTC', m:c.ctc, cls:'grand'});
+    rows.push({label:'Cash in Hand (CIH)', m:c.cih, cls:'grand'});
+  } else {
+    const byCat = k => c.waterfall.lines.filter(l=>l.category===k);
+
+    rows.push({label:'Earnings', m:null, cls:'section'});
+    rows.push({label:'Basic', m:c.basic});
+    byCat('earnings').forEach(l=>rows.push({label:l.name, m:l.amount}));
+
+    rows.push({label:'Excluded Allowance', m:null, cls:'section'});
+    byCat('excluded_allowance').forEach(l=>rows.push({label:l.name, m:l.amount}));
+
+    rows.push({label:'Reimbursements', m:null, cls:'section'});
+    byCat('reimbursement').forEach(l=>rows.push({label:l.name, m:l.amount}));
+
+    rows.push({label:'Employer PF', m:c.employerPF, cls:'subitem'});
+    rows.push({label:'Total Remuneration (R)', m:c.R, cls:'total'});
+
+    rows.push({label:'Employer Contribution (added to CTC)', m:null, cls:'section'});
+    rows.push({label:'Employer ESI', m:c.employerESI});
+    rows.push({label:'Gratuity', m:c.gratuity});
+
+    if(c.totalBenefits>0 || c.benefits.length){
+      rows.push({label:'Benefits (added to CTC)', m:null, cls:'section'});
+      c.benefits.forEach(b=>rows.push({label:b.name, m:b.amount}));
+    }
+    rows.push({label:'CTC (Remuneration + Employer ESI + Gratuity + Benefits)', m:c.ctc, cls:'total'});
+    rows.push({label:'Incentive / PLB', m:c.incentive});
+    rows.push({label:'CTC incl. Incentive', m:c.ctc+c.incentive, cls:'grand'});
+
+    rows.push({label:'Employee Deductions', m:null, cls:'section'});
+    rows.push({label:'Employee PF', m:c.employeePF});
+    rows.push({label:'Employee ESI', m:c.employeeESI});
+    rows.push({label:'Cash in Hand (Remuneration − Employer PF − Employee PF − Employee ESI)', m:c.cih, cls:'grand'});
+  }
+  document.getElementById('breakupBody').innerHTML = rows.map(row=>{
+    if(row.m===null) return `<tr class="${row.cls||''}"><td colspan="3">${row.label}</td></tr>`;
+    return `<tr class="${row.cls||''}"><td>${row.label}</td><td class="mono">${fmt(row.m)}</td><td class="mono">${fmt(row.m*12)}</td></tr>`;
+  }).join('');
+}
+['inState','inCategory','inPF','inMetro','inPFBasis','inEmpType','inWage','inHike','inIncentive']
+  .forEach(id=>document.getElementById(id).addEventListener('input', runCalc));
+
+/* ============================================================
+   MINIMUM WAGE EDITOR
+   ============================================================ */
+function renderMwEditor(){
+  const q = (document.getElementById('mwSearch').value||'').toLowerCase();
+  const body = document.getElementById('mwEditorBody');
+  const rowsHtml = MW_TABLE.map((row,idx)=>{
+    if(q && !row.state.toLowerCase().includes(q)) return '';
+    return `<tr data-idx="${idx}">
+      <td><input type="text" value="${escapeHtml(row.state)}" oninput="updateMwField(${idx},'state',this.value)"></td>
+      <td><input type="number" value="${row.unskilled??''}" oninput="updateMwField(${idx},'unskilled',this.value)"></td>
+      <td><input type="number" value="${row.semiskilled??''}" oninput="updateMwField(${idx},'semiskilled',this.value)"></td>
+      <td><input type="number" value="${row.skilled??''}" oninput="updateMwField(${idx},'skilled',this.value)"></td>
+      <td><input type="number" value="${row.highlyskilled??''}" oninput="updateMwField(${idx},'highlyskilled',this.value)"></td>
+      <td><button class="btn danger small" onclick="deleteMwRow(${idx})">Delete</button></td>
+    </tr>`;
+  }).join('');
+  body.innerHTML = rowsHtml || `<tr><td colspan="6" style="text-align:center;color:#8592a0;padding:20px;">No states match your filter.</td></tr>`;
+}
+function updateMwField(idx, field, value){
+  if(field==='state'){ MW_TABLE[idx].state = value; }
+  else { MW_TABLE[idx][field] = value===''? null : Number(value); }
+}
+function addMwRow(){ MW_TABLE.push({state:'New State', unskilled:null, semiskilled:null, skilled:null, highlyskilled:null}); renderMwEditor(); }
+function deleteMwRow(idx){ MW_TABLE.splice(idx,1); renderMwEditor(); }
+async function saveMwTable(){
+  const ok = await SharedStore.set('mw_table', MW_TABLE);
+  if(ok){
+    document.getElementById('mwSaveMsg').textContent = 'Saved to the shared database. Every login will now see this data.';
+    document.getElementById('mwSaveMsg').style.color = 'var(--teal)';
+  } else {
+    document.getElementById('mwSaveMsg').textContent = 'Could not reach the shared database — changes were not saved. Check your connection and try again.';
+    document.getElementById('mwSaveMsg').style.color = 'var(--red)';
+  }
+  populateStates(); runCalc();
+}
+function resetMwTable(){
+  if(!confirm('Reset the minimum wage table to the original workbook data? Unsaved edits will be lost.')) return;
+  MW_TABLE = JSON.parse(JSON.stringify(MW_DEFAULT)); renderMwEditor();
+}
+
+/* ============================================================
+   COMPONENTS & FORMULAS EDITOR
+   ============================================================ */
+function renderComponentConfig(){
+  document.getElementById('cfgBasicPercent').value = CONFIG.basicPercent;
+  document.getElementById('cfgPfCeiling').value = CONFIG.pfCeiling;
+  document.getElementById('cfgIncentiveBase').value = CONFIG.incentiveBase;
+  document.getElementById('cfgEmployerPF').value = CONFIG.employerPFPercent;
+  document.getElementById('cfgEmployeePF').value = CONFIG.employeePFPercent;
+  document.getElementById('cfgBonusThreshold').value = CONFIG.bonusThreshold;
+  document.getElementById('cfgBonusPercent').value = CONFIG.bonusPercent;
+  document.getElementById('cfgErEsicThreshold').value = CONFIG.employerEsicThreshold;
+  document.getElementById('cfgErEsicPercent').value = CONFIG.employerEsicPercent;
+  document.getElementById('cfgEeEsicThreshold').value = CONFIG.employeeEsicThreshold;
+  document.getElementById('cfgEeEsicPercent').value = CONFIG.employeeEsicPercent;
+  document.getElementById('cfgGratuity').value = CONFIG.gratuityPercent;
+  renderEarnings(); renderBenefits();
+}
+function bindCfg(id, field){
+  document.getElementById(id).addEventListener('input', e=>{ CONFIG[field] = parseFloat(e.target.value)||0; runCalc(); });
+}
+bindCfg('cfgBasicPercent','basicPercent');
+bindCfg('cfgPfCeiling','pfCeiling');
+document.getElementById('cfgIncentiveBase').addEventListener('change', e=>{ CONFIG.incentiveBase = e.target.value; runCalc(); });
+bindCfg('cfgEmployerPF','employerPFPercent');
+bindCfg('cfgEmployeePF','employeePFPercent');
+bindCfg('cfgBonusThreshold','bonusThreshold');
+bindCfg('cfgBonusPercent','bonusPercent');
+bindCfg('cfgErEsicThreshold','employerEsicThreshold');
+bindCfg('cfgErEsicPercent','employerEsicPercent');
+bindCfg('cfgEeEsicThreshold','employeeEsicThreshold');
+bindCfg('cfgEeEsicPercent','employeeEsicPercent');
+bindCfg('cfgGratuity','gratuityPercent');
+
+function categorySelect(idx, current){
+  return `<select onchange="earn(${idx},'category',this.value)">
+    <option value="earnings" ${current==='earnings'?'selected':''}>Earnings</option>
+    <option value="excluded_allowance" ${current==='excluded_allowance'?'selected':''}>Excluded Allowance</option>
+    <option value="reimbursement" ${current==='reimbursement'?'selected':''}>Reimbursement</option>
+  </select>`;
+}
+function renderEarnings(){
+  const el = document.getElementById('earningsList');
+  el.innerHTML = CONFIG.waterfall.map((c,idx)=>{
+    const isPercent = c.type==='percent';
+    const isFixed = c.type==='fixed';
+    const isCappedRem = c.type==='remainderCapped';
+    return `<div class="comp-card">
+      <div class="comp-head">
+        <span class="order-badge">${idx+1}</span>
+        <input type="text" value="${escapeHtml(c.name)}" oninput="earn(${idx},'name',this.value)">
+        ${categorySelect(idx, c.category)}
+        <select onchange="earn(${idx},'type',this.value)">
+          <option value="percent" ${isPercent?'selected':''}>Percentage (waterfall)</option>
+          <option value="fixed" ${isFixed?'selected':''}>Fixed Amount</option>
+          <option value="remainderCapped" ${isCappedRem?'selected':''}>Capped Remainder</option>
+          <option value="remainder" ${c.type==='remainder'?'selected':''}>Full Remainder</option>
+        </select>
+        <div class="comp-actions">
+          <button class="btn secondary small" title="Move up" onclick="moveEarning(${idx},-1)">↑</button>
+          <button class="btn secondary small" title="Move down" onclick="moveEarning(${idx},1)">↓</button>
+          <button class="btn danger small" onclick="removeEarning(${idx})">Delete</button>
+        </div>
+      </div>
+      ${isPercent ? `
+      <div class="comp-fields">
+        <div><label>Base</label><select onchange="earn(${idx},'base',this.value)">
+          <option value="wage" ${c.base==='wage'?'selected':''}>Remuneration</option>
+          <option value="basic" ${c.base==='basic'?'selected':''}>Basic</option>
+        </select></div>
+        <div><label>Percent (%)</label><input type="number" step="0.01" value="${c.percent}" oninput="earn(${idx},'percent',this.value)"></div>
+        <div><label>Non-Metro Override (%)</label><input type="number" step="0.5" value="${c.nonMetroPercent??''}" placeholder="same as above" oninput="earn(${idx},'nonMetroPercent',this.value)"></div>
+        <div><label>Cap (₹)</label><input type="number" value="${c.cap??''}" placeholder="no cap" oninput="earn(${idx},'cap',this.value)"></div>
+        <div><label>Wage Tier (₹)</label><input type="number" value="${c.wageTier??''}" placeholder="none" oninput="earn(${idx},'wageTier',this.value)"></div>
+        <div><label>Cap Above Tier (₹)</label><input type="number" value="${c.capHigh??''}" placeholder="same cap" oninput="earn(${idx},'capHigh',this.value)"></div>
+        <div><label>Min. Remuneration to Apply (₹)</label><input type="number" value="${c.minApplyWage??''}" placeholder="always applies" oninput="earn(${idx},'minApplyWage',this.value)"></div>
+        <div><label>Threshold % (if gated)</label><input type="number" step="0.5" value="${c.thresholdPercent??''}" placeholder="same as Percent" oninput="earn(${idx},'thresholdPercent',this.value)"></div>
+        <div class="chk"><input type="checkbox" id="gate_${idx}" ${c.gated?'checked':''} onchange="earn(${idx},'gated',this.checked)"><label for="gate_${idx}" style="margin:0;">Only pay if balance exceeds threshold</label></div>
+      </div>` : ''}
+      ${isFixed ? `<div class="comp-fields"><div><label>Fixed Amount (₹ / month)</label><input type="number" value="${c.fixedAmount}" oninput="earn(${idx},'fixedAmount',this.value)"></div></div>` : ''}
+      ${isCappedRem ? `<div class="comp-fields"><div><label>Cap (₹)</label><input type="number" value="${c.cap??''}" oninput="earn(${idx},'cap',this.value)"></div></div><div class="comp-note">Pays out whatever balance is left, up to this cap.</div>` : ''}
+      ${c.type==='remainder' ? `<div class="comp-note">Absorbs whatever balance is left after all components above. Usually kept last.</div>` : ''}
+    </div>`;
+  }).join('');
+}
+function earn(idx, field, value){
+  const c = CONFIG.waterfall[idx];
+  if(field==='name'){ c.name=value; return; }
+  if(field==='category'){ c.category=value; runCalc(); return; }
+  if(field==='type'){ c.type=value; renderEarnings(); runCalc(); return; }
+  if(field==='base'){ c.base=value; }
+  else if(field==='gated'){ c.gated=value; }
+  else if(field==='fixedAmount'){ c.fixedAmount = parseFloat(value)||0; }
+  else { c[field] = numOrNull(value); }
+  runCalc();
+}
+function addEarning(){
+  const hasRemainder = CONFIG.waterfall.some(e=>e.type==='remainder');
+  const insertAt = CONFIG.waterfall.length - (hasRemainder?1:0);
+  CONFIG.waterfall.splice(insertAt,0,
+    {id:newId('comp'), name:'New Component', category:'earnings', type:'fixed', base:'wage', percent:0, nonMetroPercent:null, cap:null, capHigh:null, wageTier:null, minApplyWage:null, gated:false, thresholdPercent:null, fixedAmount:0});
+  renderEarnings(); runCalc();
+}
+function removeEarning(idx){ CONFIG.waterfall.splice(idx,1); renderEarnings(); runCalc(); }
+function moveEarning(idx, dir){
+  const j = idx+dir;
+  if(j<0 || j>=CONFIG.waterfall.length) return;
+  [CONFIG.waterfall[idx], CONFIG.waterfall[j]] = [CONFIG.waterfall[j], CONFIG.waterfall[idx]];
+  renderEarnings(); runCalc();
+}
+
+function renderBenefits(){
+  const el = document.getElementById('benefitsList');
+  el.innerHTML = CONFIG.benefits.map((b,idx)=>`
+    <div class="comp-card">
+      <div class="comp-head">
+        <input type="text" value="${escapeHtml(b.name)}" oninput="benefit(${idx},'name',this.value)">
+        <div class="comp-fields" style="grid-template-columns:180px;margin-top:0;">
+          <div><label>Amount (₹ / month)</label><input type="number" value="${b.amount}" oninput="benefit(${idx},'amount',this.value)"></div>
+        </div>
+        <div class="comp-actions"><button class="btn danger small" onclick="removeBenefit(${idx})">Delete</button></div>
+      </div>
+    </div>`).join('');
+}
+function benefit(idx, field, value){
+  const b = CONFIG.benefits[idx];
+  if(field==='name') b.name=value; else b.amount = parseFloat(value)||0;
+  runCalc();
+}
+function addBenefit(){ CONFIG.benefits.push({id:newId('ben'), name:'New Benefit', amount:0}); renderBenefits(); runCalc(); }
+function removeBenefit(idx){ CONFIG.benefits.splice(idx,1); renderBenefits(); runCalc(); }
+
+async function saveComponentConfig(){
+  const ok = await SharedStore.set('formulas', CONFIG);
+  if(ok){ alert('Formula changes saved to the shared database. Every login will now use these rules.'); }
+  else { alert('Could not reach the shared database — changes were not saved. Check your connection and try again.'); }
+  runCalc();
+}
+function resetComponentConfig(){
+  if(!confirm('Reset all settings, the component waterfall and benefits to the original formulas? Unsaved edits will be lost.')) return;
+  CONFIG = defaultConfig(); renderComponentConfig(); runCalc();
+}
+
+/* ============================================================
+   CANDIDATE DATABASE
+   ============================================================ */
+let CANDIDATES = [];
+async function loadCandidates(){
+  try{
+    const res = await Store.get('candidates-data');
+    CANDIDATES = res && res.value ? JSON.parse(res.value) : [];
+  }catch(e){ CANDIDATES = []; }
+  renderDb();
+}
+async function persistCandidates(){
+  try{ await Store.set('candidates-data', JSON.stringify(CANDIDATES)); }catch(e){ console.error('Storage error', e); }
+}
+async function saveCandidate(){
+  const {inputs, c} = runCalc();
+  const name = document.getElementById('inName').value.trim();
+  if(!name){
+    document.getElementById('saveMsg').textContent = 'Enter an employee name before saving.';
+    document.getElementById('saveMsg').style.color = 'var(--red)';
+    return;
+  }
+  const record = {
+    id: newId('cand'), name,
+    department: document.getElementById('inDept').value.trim(),
+    designation: document.getElementById('inDesig').value.trim(),
+    grade: document.getElementById('inGrade').value.trim(),
+    doj: document.getElementById('inDoj').value,
+    inputs, calc: c, savedAt: new Date().toISOString()
+  };
+  CANDIDATES.unshift(record);
+  await persistCandidates();
+  document.getElementById('saveMsg').textContent = `Saved "${name}" to the candidate database.`;
+  document.getElementById('saveMsg').style.color = 'var(--teal)';
+  renderDb();
+}
+async function deleteCandidate(id){ CANDIDATES = CANDIDATES.filter(c=>c.id!==id); await persistCandidates(); renderDb(); closeModal(); }
+async function clearAll(){
+  if(!CANDIDATES.length) return;
+  if(!confirm('Remove all saved candidates? This cannot be undone.')) return;
+  CANDIDATES = []; await persistCandidates(); renderDb();
+}
+function renderDb(){
+  const wrap = document.getElementById('dbWrap');
+  const q = document.getElementById('dbSearch').value.toLowerCase();
+  const sort = document.getElementById('dbSort').value;
+  let list = CANDIDATES.filter(c=>!q || [c.name,c.department,c.designation,c.inputs.state,c.grade].join(' ').toLowerCase().includes(q));
+  if(sort==='new') list=[...list].sort((a,b)=>new Date(b.savedAt)-new Date(a.savedAt));
+  if(sort==='old') list=[...list].sort((a,b)=>new Date(a.savedAt)-new Date(b.savedAt));
+  if(sort==='name') list=[...list].sort((a,b)=>a.name.localeCompare(b.name));
+  if(sort==='ctc') list=[...list].sort((a,b)=>(b.calc.ctc+(b.calc.incentive||0))-(a.calc.ctc+(a.calc.incentive||0)));
+
+  if(!CANDIDATES.length){ wrap.innerHTML = `<div class="empty">No candidates saved yet.<br>Go to <b>Salary Calculator</b>, fill in the details, and click <b>Save to Candidate Database</b>.</div>`; return; }
+  if(!list.length){ wrap.innerHTML = `<div class="empty">No candidates match "${escapeHtml(q)}".</div>`; return; }
+
+  wrap.innerHTML = `<table class="db"><thead><tr>
+      <th>Name</th><th>Designation / Dept.</th><th>State</th><th>Category</th>
+      <th>Remuneration</th><th>CTC</th><th>Cash in Hand</th><th>PF</th><th>Saved</th><th></th>
+    </tr></thead><tbody>
+      ${list.map(c=>`<tr>
+        <td><b>${escapeHtml(c.name)}</b>${c.grade?` <span style="color:#8592a0;">(${escapeHtml(c.grade)})</span>`:''}</td>
+        <td>${escapeHtml(c.designation||'–')}${c.department?' · '+escapeHtml(c.department):''}</td>
+        <td>${escapeHtml(c.inputs.state)}</td>
+        <td>${CAT_LABEL[c.inputs.category]}</td>
+        <td class="mono">${fmt(c.calc.R)}</td>
+        <td class="mono">${fmt(c.calc.ctc+(c.calc.incentive||0))}</td>
+        <td class="mono">${fmt(c.calc.cih)}</td>
+        <td><span class="pill ${c.inputs.pf==='Y'?'y':'n'}">${c.inputs.pf==='Y'?'Yes':'No'}</span></td>
+        <td>${new Date(c.savedAt).toLocaleDateString('en-IN')}</td>
+        <td style="white-space:nowrap;">
+          <button class="btn secondary small" onclick="viewCandidate('${c.id}')">View</button>
+          <button class="btn danger small" onclick="deleteCandidate('${c.id}')">Delete</button>
+        </td>
+      </tr>`).join('')}
+    </tbody></table>`;
+}
+function escapeHtml(s){ return (s||'').toString().replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+function viewCandidate(id){
+  const c = CANDIDATES.find(x=>x.id===id);
+  if(!c) return;
+  const calc = c.calc, inp = c.inputs;
+  const byCat = k => calc.waterfall.lines.filter(l=>l.category===k);
+  const rowsHtml = (arr)=>arr.map(l=>`<tr><td>${escapeHtml(l.name)}</td><td class="mono">${fmt(l.amount)}</td><td class="mono">${fmt(l.amount*12)}</td></tr>`).join('');
+  const benefitsHtml = calc.benefits.map(b=>`<tr><td>${escapeHtml(b.name)}</td><td class="mono">${fmt(b.amount)}</td><td class="mono">${fmt(b.amount*12)}</td></tr>`).join('');
+  document.getElementById('modalBody').innerHTML = `
+    <button class="btn secondary small modal-close" onclick="closeModal()">Close</button>
+    <h3>${escapeHtml(c.name)}</h3>
+    <div class="modal-sub">${escapeHtml(c.designation||'–')} · ${escapeHtml(c.department||'–')} ${c.grade?'· Grade '+escapeHtml(c.grade):''} ${c.doj?'· DOJ '+c.doj:''}</div>
+    <table class="calc"><thead><tr><th>Component</th><th>Monthly</th><th>Annual</th></tr></thead><tbody>
+      <tr class="section"><td colspan="3">${escapeHtml(inp.state)} · ${CAT_LABEL[inp.category]} · ${inp.metro==='Y'?'Metro':'Non-Metro'} · PF: ${inp.pf==='Y'?'Yes':'No'}</td></tr>
+      <tr class="section"><td colspan="3">Earnings</td></tr>
+      <tr><td>Basic</td><td class="mono">${fmt(calc.basic)}</td><td class="mono">${fmt(calc.basic*12)}</td></tr>
+      ${rowsHtml(byCat('earnings'))}
+      <tr class="section"><td colspan="3">Excluded Allowance</td></tr>
+      ${rowsHtml(byCat('excluded_allowance'))}
+      <tr class="section"><td colspan="3">Reimbursements</td></tr>
+      ${rowsHtml(byCat('reimbursement'))}
+      <tr><td>Employer PF</td><td class="mono">${fmt(calc.employerPF)}</td><td class="mono">${fmt(calc.employerPF*12)}</td></tr>
+      <tr class="total"><td>Total Remuneration (R)</td><td class="mono">${fmt(calc.R)}</td><td class="mono">${fmt(calc.R*12)}</td></tr>
+      <tr><td>Employer ESI</td><td class="mono">${fmt(calc.employerESI)}</td><td class="mono">${fmt(calc.employerESI*12)}</td></tr>
+      <tr><td>Gratuity</td><td class="mono">${fmt(calc.gratuity)}</td><td class="mono">${fmt(calc.gratuity*12)}</td></tr>
+      ${benefitsHtml}
+      <tr class="grand"><td>CTC</td><td class="mono">${fmt(calc.ctc)}</td><td class="mono">${fmt(calc.ctc*12)}</td></tr>
+      <tr><td>Incentive / PLB</td><td class="mono">${fmt(calc.incentive)}</td><td class="mono">${fmt(calc.incentive*12)}</td></tr>
+      <tr class="grand"><td>CTC incl. Incentive</td><td class="mono">${fmt(calc.ctc+calc.incentive)}</td><td class="mono">${fmt((calc.ctc+calc.incentive)*12)}</td></tr>
+      <tr><td>Employee PF</td><td class="mono">${fmt(calc.employeePF)}</td><td class="mono">${fmt(calc.employeePF*12)}</td></tr>
+      <tr><td>Employee ESI</td><td class="mono">${fmt(calc.employeeESI)}</td><td class="mono">${fmt(calc.employeeESI*12)}</td></tr>
+      <tr class="grand"><td>Cash in Hand (CIH)</td><td class="mono">${fmt(calc.cih)}</td><td class="mono">${fmt(calc.cih*12)}</td></tr>
+    </tbody></table>`;
+  document.getElementById('modalBg').classList.add('show');
+}
+function closeModal(){ document.getElementById('modalBg').classList.remove('show'); }
+
+function exportCsv(){
+  if(!CANDIDATES.length){ alert('No candidates to export.'); return; }
+  const headers = ['Name','Department','Designation','Grade','DOJ','State','Category','Metro','PF Applicable',
+    'Remuneration (mo)','Basic','Employer PF','Statutory Bonus','Employer ESI','Gratuity','Total Benefits',
+    'CTC (monthly)','CTC (annual)','Incentive','Employee PF','Employee ESI','Cash in Hand (monthly)','Cash in Hand (annual)','Saved On'];
+  const lines = [headers.join(',')];
+  CANDIDATES.forEach(c=>{
+    const i=c.inputs, k=c.calc;
+    const row = [c.name,c.department,c.designation,c.grade,c.doj,i.state,CAT_LABEL[i.category],
+      i.metro==='Y'?'Metro':'Non-Metro', i.pf==='Y'?'Yes':'No', k.R, k.basic, k.employerPF, k.bonus,
+      k.employerESI, k.gratuity, k.totalBenefits, k.ctc, k.ctc*12, k.incentive, k.employeePF, k.employeeESI,
+      k.cih, k.cih*12, new Date(c.savedAt).toLocaleDateString('en-IN')]
+      .map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',');
+    lines.push(row);
+  });
+  const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='candidate-database.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+/* ============================================================
+   AUTHENTICATION (client-side access gate — see note to user:
+   this keeps casual users out of admin settings but is not
+   cryptographically secure, since anyone can view page source)
+   ============================================================ */
+let AUTH_CONFIG = { adminPassword: 'admin123', userPassword: 'user123' };
+let currentRole = null; // 'admin' | 'user'
+let loginRoleChoice = 'user';
+
+function setLoginRole(role){
+  loginRoleChoice = role;
+  document.getElementById('roleBtnUser').classList.toggle('active', role==='user');
+  document.getElementById('roleBtnAdmin').classList.toggle('active', role==='admin');
+  document.getElementById('loginError').textContent = '';
+}
+async function loadAuthConfig(){
+  const val = await SharedStore.get('auth');
+  if(val){ AUTH_CONFIG = Object.assign(AUTH_CONFIG, val); }
+}
+async function saveAuthConfig(){
+  const adminPw = document.getElementById('adminPasswordInput').value.trim();
+  const userPw = document.getElementById('userPasswordInput').value.trim();
+  if(!adminPw || !userPw){ alert('Both access codes must be non-empty.'); return; }
+  const updated = { adminPassword: adminPw, userPassword: userPw };
+  const ok = await SharedStore.set('auth', updated);
+  if(ok){ AUTH_CONFIG = updated; alert('Access codes updated for every login.'); }
+  else { alert('Could not reach the shared database — access codes were not updated. Check your connection and try again.'); }
+}
+function renderAdminAccessCard(){
+  const el = document.getElementById('adminAccessFields');
+  if(!el) return;
+  el.innerHTML = `
+    <div class="row2">
+      <div><label>Admin Access Code</label><input type="text" id="adminPasswordInput" value="${escapeHtml(AUTH_CONFIG.adminPassword)}"></div>
+      <div><label>User Access Code</label><input type="text" id="userPasswordInput" value="${escapeHtml(AUTH_CONFIG.userPassword)}"></div>
+    </div>
+    <button class="btn small" style="margin-top:10px;" onclick="saveAuthConfig()">Update Access Codes</button>
+    <div class="hint" style="margin-top:8px;">These codes gate access to this tool. They are stored in this browser's/account's storage, not encrypted — treat this as a basic access gate for trusted colleagues, not as protection for highly sensitive data.</div>`;
+}
+function attemptLogin(){
+  const pw = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  const expected = loginRoleChoice==='admin' ? AUTH_CONFIG.adminPassword : AUTH_CONFIG.userPassword;
+  if(pw === expected || (loginRoleChoice==='user' && pw === AUTH_CONFIG.adminPassword)){
+    // an admin code also unlocks user-level access; admin role only granted when admin code entered under Admin toggle
+    currentRole = (loginRoleChoice==='admin' && pw===AUTH_CONFIG.adminPassword) ? 'admin' : 'user';
+    try{ sessionStorage.setItem('sst-role', currentRole); }catch(e){}
+    enterApp();
+  } else {
+    errEl.textContent = 'Incorrect access code for the selected role.';
+  }
+}
+function logout(){
+  currentRole = null;
+  try{ sessionStorage.removeItem('sst-role'); }catch(e){}
+  document.getElementById('appRoot').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('loginPassword').value = '';
+  document.getElementById('loginError').textContent = '';
+}
+function enterApp(){
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appRoot').style.display = 'block';
+  const badge = document.getElementById('roleBadge');
+  badge.textContent = currentRole==='admin' ? 'Admin' : 'User';
+  document.getElementById('tabBtnMw').style.display = currentRole==='admin' ? '' : 'none';
+  document.getElementById('tabBtnComp').style.display = currentRole==='admin' ? '' : 'none';
+  showPage('calc');
+}
+
+/* ============================================================
+   TABS, STORAGE NOTICE & INIT
+   ============================================================ */
+function showPage(name){
+  if((name==='mw' || name==='comp') && currentRole!=='admin') name = 'calc';
+  ['calc','mw','comp','db'].forEach(p=>document.getElementById('page-'+p).classList.toggle('active', p===name));
+  document.getElementById('tabBtnCalc').classList.toggle('active', name==='calc');
+  document.getElementById('tabBtnMw').classList.toggle('active', name==='mw');
+  document.getElementById('tabBtnComp').classList.toggle('active', name==='comp');
+  document.getElementById('tabBtnDb').classList.toggle('active', name==='db');
+  if(name==='mw') renderMwEditor();
+  if(name==='comp'){ renderComponentConfig(); renderAdminAccessCard(); }
+}
+function showStorageNotice(){
+  const note = document.querySelector('footer.note');
+  if(Store.mode === 'local'){
+    note.innerHTML = 'Minimum Wages, Formulas and login access codes are shared with every login. Your Candidate Database is saved only in this browser, on this device.';
+  } else if(Store.mode === 'memory'){
+    note.innerHTML = '⚠ This browser does not support local storage — your Candidate Database will be lost when you close this tab. Use Export CSV to keep a copy. Minimum Wages and Formulas are still shared normally.';
+  } else {
+    note.innerHTML = 'Minimum Wages, Formulas and login access codes are shared with every login. Your Candidate Database is personal to your account.';
+  }
+}
+async function init(){
+  populateStates(); runCalc(); showStorageNotice();
+
+  // pull the three shared records from Supabase; fall back to built-in
+  // defaults (already in memory) if the network call fails for any reason
+  const [authVal, mwVal, cfgVal] = await Promise.all([
+    SharedStore.get('auth'),
+    SharedStore.get('mw_table'),
+    SharedStore.get('formulas')
+  ]);
+  if(authVal) AUTH_CONFIG = Object.assign(AUTH_CONFIG, authVal);
+  if(mwVal && Array.isArray(mwVal) && mwVal.length) MW_TABLE = mwVal;
+  if(cfgVal && Object.keys(cfgVal).length) CONFIG = Object.assign(defaultConfig(), cfgVal);
+
+  populateStates(); runCalc(); loadCandidates();
+
+  const submitBtn = document.getElementById('loginSubmitBtn');
+  submitBtn.disabled = false;
+  submitBtn.textContent = 'Sign In';
+  if(!authVal && !mwVal && !cfgVal){
+    document.getElementById('loginError').textContent = 'Could not reach the shared database — showing default data. Check your internet connection.';
   }
 
-  document.getElementById('assumptionNote').textContent =
-    `Basic = ${Math.round(cfg.basic_pct_of_remuneration*100)}% of Remuneration, floored at the ${state} minimum wage of ₹${minWage.toLocaleString('en-IN')}/mo. ` +
-    `Statutory bonus applies only when Basic is below ₹${cfg.bonus_wage_ceiling_monthly.toLocaleString('en-IN')}/mo. ` +
-    `ESIC applies only when gross (Basic+HRA+Other) is at or below ₹${cfg.esic_wage_ceiling_monthly.toLocaleString('en-IN')}/mo. ` +
-    `All rates are editable by an admin.`;
-
-  document.getElementById('resultCard').classList.remove('hidden');
-};
-
-// ---------- INIT ----------
-(async () => {
-  const { data: { session } } = await supa.auth.getSession();
-  if (session) onAuthed();
-})();
+  try{
+    const savedRole = sessionStorage.getItem('sst-role');
+    if(savedRole==='admin' || savedRole==='user'){ currentRole = savedRole; }
+  }catch(e){}
+  if(currentRole){ enterApp(); }
+}
+init();
 </script>
-
 </body>
 </html>
