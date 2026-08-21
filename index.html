@@ -87,6 +87,14 @@
   .kpi .label{ font-size:10.5px; text-transform:uppercase; letter-spacing:.4px; color:var(--ink-soft); font-weight:700; }
   .kpi .value{ font-size:19px; font-weight:800; color:var(--navy); margin-top:4px; }
   .kpi .value small{ font-size:11px; font-weight:600; color:var(--ink-soft); }
+  .kpi.kpi-icon{ display:flex; align-items:flex-start; gap:12px; }
+  .kpi-icon-badge{ width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+  .kpi-teal .kpi-icon-badge{ background:var(--teal-soft); }
+  .kpi-amber .kpi-icon-badge{ background:var(--amber-soft); }
+  .kpi-violet .kpi-icon-badge{ background:var(--violet-soft); }
+  .kpi-coral .kpi-icon-badge{ background:var(--coral-soft); }
+  .kpi-blue .kpi-icon-badge{ background:var(--blue-soft); }
+  .kpi-indigo .kpi-icon-badge{ background:var(--indigo-soft); }
 
   .toolbar{ display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
   .toolbar input[type=text]{ max-width:280px; }
@@ -1354,6 +1362,8 @@ async function saveCandidate(){
   }
 }
 async function deleteCandidate(id){
+  const c = CANDIDATES.find(x=>x.id===id);
+  if(isScopedUser() && c && c.companyId!==currentUserCompanyId){ alert('You do not have access to delete this candidate.'); return; }
   try{
     await fetch(`${SUPABASE_URL}/rest/v1/candidates?id=eq.${id}`, { method: 'DELETE', headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } });
     CANDIDATES = CANDIDATES.filter(c=>c.id!==id);
@@ -1361,12 +1371,16 @@ async function deleteCandidate(id){
   }catch(e){ alert('Could not delete — please try again.'); }
 }
 async function clearAll(){
-  if(!CANDIDATES.length) return;
-  if(!confirm('Remove ALL candidates from the shared database? This affects every login and cannot be undone.')) return;
-  for(const c of CANDIDATES){
+  const list = visibleCandidates();
+  if(!list.length) return;
+  const scopeMsg = isScopedUser() ? "your company's candidates" : 'ALL candidates from the shared database';
+  if(!confirm(`Remove ${scopeMsg}? This cannot be undone.`)) return;
+  for(const c of list){
     try{ await fetch(`${SUPABASE_URL}/rest/v1/candidates?id=eq.${c.id}`, { method: 'DELETE', headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }); }catch(e){}
   }
-  CANDIDATES = []; renderDb();
+  const removedIds = new Set(list.map(c=>c.id));
+  CANDIDATES = CANDIDATES.filter(c=>!removedIds.has(c.id));
+  renderDb();
 }
 async function updateCandidateStage(id, field, statusValue){
   const c = CANDIDATES.find(x=>x.id===id);
@@ -1389,19 +1403,23 @@ async function updateCandidateStage(id, field, statusValue){
     } else { alert('Could not update — please try again.'); }
   }catch(e){ alert('Could not reach the database — please try again.'); }
 }
+function visibleCandidates(){
+  if(isScopedUser()) return CANDIDATES.filter(c=>c.companyId===currentUserCompanyId);
+  return CANDIDATES;
+}
 function renderDb(){
   const wrap = document.getElementById('dbWrap');
   const q = document.getElementById('dbSearch').value.toLowerCase();
   const sort = document.getElementById('dbSort').value;
   const companyFilter = document.getElementById('dbCompanyFilter').value;
-  let list = CANDIDATES.filter(c=>!q || [c.name,c.department,c.designation,c.inputs.state,c.grade].join(' ').toLowerCase().includes(q));
+  let list = visibleCandidates().filter(c=>!q || [c.name,c.department,c.designation,c.inputs.state,c.grade].join(' ').toLowerCase().includes(q));
   if(companyFilter) list = list.filter(c=>c.companyId===companyFilter);
   if(sort==='new') list=[...list].sort((a,b)=>new Date(b.savedAt)-new Date(a.savedAt));
   if(sort==='old') list=[...list].sort((a,b)=>new Date(a.savedAt)-new Date(b.savedAt));
   if(sort==='name') list=[...list].sort((a,b)=>a.name.localeCompare(b.name));
   if(sort==='ctc') list=[...list].sort((a,b)=>(b.calc.ctc+(b.calc.incentive||0))-(a.calc.ctc+(a.calc.incentive||0)));
 
-  if(!CANDIDATES.length){ wrap.innerHTML = `<div class="empty">No candidates saved yet.<br>Go to <b>Salary Calculator</b>, fill in the details, and click <b>Save to Candidate Database</b>.</div>`; return; }
+  if(!visibleCandidates().length){ wrap.innerHTML = `<div class="empty">No candidates saved yet.<br>Go to <b>Salary Calculator</b>, fill in the details, and click <b>Save to Candidate Database</b>.</div>`; return; }
   if(!list.length){ wrap.innerHTML = `<div class="empty">No candidates match your filters.</div>`; return; }
 
   wrap.innerHTML = `<table class="db"><thead><tr>
@@ -1484,12 +1502,13 @@ async function stageAndEmail(id, field, statusValue, templateType){
 function closeModal(){ document.getElementById('modalBg').classList.remove('show'); }
 
 function exportCsv(){
-  if(!CANDIDATES.length){ alert('No candidates to export.'); return; }
+  const list = visibleCandidates();
+  if(!list.length){ alert('No candidates to export.'); return; }
   const headers = ['Name','Email','Phone','Department','Designation','Grade','DOJ','State','Category','Metro','PF Applicable',
     'Remuneration (mo)','Basic','Employer PF','Statutory Bonus','Employer ESI','Gratuity','Total Benefits',
     'CTC (monthly)','CTC (annual)','Incentive','Employee PF','Employee ESI','Cash in Hand (monthly)','Cash in Hand (annual)','Saved On'];
   const lines = [headers.join(',')];
-  CANDIDATES.forEach(c=>{
+  list.forEach(c=>{
     const i=c.inputs, k=c.calc;
     const row = [c.name,c.email||'',c.phone||'',c.department,c.designation,c.grade,c.doj,i.state,CAT_LABEL[i.category],
       i.metro==='Y'?'Metro':'Non-Metro', i.pf==='Y'?'Yes':'No', k.R, k.basic, k.employerPF, k.bonus,
@@ -1515,6 +1534,8 @@ let currentRole = null;   // 'admin' | 'user'
 let currentUsername = null;
 let currentDisplayName = null;
 let currentPermissions = { candidateDb: true, offerLetters: true };
+let currentUserCompanyId = null;
+function isScopedUser(){ return currentRole!=='admin'; }
 
 async function sha256Hex(text){
   const enc = new TextEncoder().encode(text);
@@ -1552,11 +1573,13 @@ async function attemptLogin(){
     currentUsername = user.username;
     currentDisplayName = user.display_name || user.username;
     currentPermissions = Object.assign({ candidateDb: true, offerLetters: true }, user.permissions || {});
+    currentUserCompanyId = user.company_id || null;
     try{
       sessionStorage.setItem('sst-role', currentRole);
       sessionStorage.setItem('sst-username', currentUsername);
       sessionStorage.setItem('sst-displayname', currentDisplayName);
       sessionStorage.setItem('sst-permissions', JSON.stringify(currentPermissions));
+      sessionStorage.setItem('sst-companyid', currentUserCompanyId || '');
     }catch(e){}
     enterApp();
     await maybeOfferLocalImport();
@@ -1568,8 +1591,8 @@ async function attemptLogin(){
   }
 }
 function logout(){
-  currentRole = null; currentUsername = null; currentDisplayName = null; currentPermissions = { candidateDb: true, offerLetters: true };
-  try{ sessionStorage.removeItem('sst-role'); sessionStorage.removeItem('sst-username'); sessionStorage.removeItem('sst-displayname'); sessionStorage.removeItem('sst-permissions'); }catch(e){}
+  currentRole = null; currentUsername = null; currentDisplayName = null; currentPermissions = { candidateDb: true, offerLetters: true }; currentUserCompanyId = null;
+  try{ sessionStorage.removeItem('sst-role'); sessionStorage.removeItem('sst-username'); sessionStorage.removeItem('sst-displayname'); sessionStorage.removeItem('sst-permissions'); sessionStorage.removeItem('sst-companyid'); }catch(e){}
   document.getElementById('appRoot').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('loginUsername').value = '';
@@ -1759,11 +1782,19 @@ function populateCompanySelectors(){
   const inCompanyEl = document.getElementById('inCompany');
   if(inCompanyEl){
     const prev = inCompanyEl.value;
-    if(COMPANIES.length){
-      inCompanyEl.innerHTML = COMPANIES.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
-      inCompanyEl.value = COMPANIES.some(c=>c.id===prev) ? prev : COMPANIES[0].id;
+    if(isScopedUser()){
+      const own = currentUserCompanyId ? COMPANIES.find(c=>c.id===currentUserCompanyId) : null;
+      inCompanyEl.innerHTML = own ? `<option value="${own.id}">${escapeHtml(own.name)}</option>` : '<option value="">No company assigned — contact your Admin</option>';
+      inCompanyEl.value = own ? own.id : '';
+      inCompanyEl.disabled = true;
     } else {
-      inCompanyEl.innerHTML = '<option value="">No companies yet — add one first</option>';
+      inCompanyEl.disabled = false;
+      if(COMPANIES.length){
+        inCompanyEl.innerHTML = COMPANIES.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+        inCompanyEl.value = COMPANIES.some(c=>c.id===prev) ? prev : COMPANIES[0].id;
+      } else {
+        inCompanyEl.innerHTML = '<option value="">No companies yet — add one first</option>';
+      }
     }
   }
   const templateCompanyEl = document.getElementById('templateCompanySelect');
@@ -1791,8 +1822,16 @@ function populateCompanySelectors(){
   const dbCompanyFilterEl = document.getElementById('dbCompanyFilter');
   if(dbCompanyFilterEl){
     const prev = dbCompanyFilterEl.value;
-    dbCompanyFilterEl.innerHTML = '<option value="">All Companies</option>' + COMPANIES.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
-    if(COMPANIES.some(c=>c.id===prev)) dbCompanyFilterEl.value = prev;
+    if(isScopedUser()){
+      const own = currentUserCompanyId ? COMPANIES.find(c=>c.id===currentUserCompanyId) : null;
+      dbCompanyFilterEl.innerHTML = own ? `<option value="${own.id}">${escapeHtml(own.name)}</option>` : '<option value="">No company assigned</option>';
+      dbCompanyFilterEl.value = own ? own.id : '';
+      dbCompanyFilterEl.disabled = true;
+    } else {
+      dbCompanyFilterEl.disabled = false;
+      dbCompanyFilterEl.innerHTML = '<option value="">All Companies</option>' + COMPANIES.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+      if(COMPANIES.some(c=>c.id===prev)) dbCompanyFilterEl.value = prev;
+    }
   }
 }
 async function saveNewCompany(){
@@ -1989,7 +2028,7 @@ async function viewTemplatePlaceholders(storagePath){
 function populateGenCandidateOptions(){
   const sel = document.getElementById('genCandidateSelect');
   if(!sel) return;
-  const withCompany = CANDIDATES.filter(c=>c.companyId);
+  const withCompany = visibleCandidates().filter(c=>c.companyId);
   sel.innerHTML = withCompany.length ? withCompany.map(c=>`<option value="${c.id}">${escapeHtml(c.name)} — ${escapeHtml(c.designation||'')}</option>`).join('') : '<option value="">No candidates with a company assigned</option>';
   onGenCandidateChange();
 }
@@ -2174,8 +2213,16 @@ function populateDashboardSelectors(){
   const companySel = document.getElementById('dashCompanyFilter');
   if(companySel){
     const prev = companySel.value;
-    companySel.innerHTML = '<option value="">All Companies</option>' + COMPANIES.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
-    if(COMPANIES.some(c=>c.id===prev)) companySel.value = prev;
+    if(isScopedUser()){
+      const own = currentUserCompanyId ? COMPANIES.find(c=>c.id===currentUserCompanyId) : null;
+      companySel.innerHTML = own ? `<option value="${own.id}">${escapeHtml(own.name)}</option>` : '<option value="">No company assigned</option>';
+      companySel.value = own ? own.id : '';
+      companySel.disabled = true;
+    } else {
+      companySel.disabled = false;
+      companySel.innerHTML = '<option value="">All Companies</option>' + COMPANIES.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+      if(COMPANIES.some(c=>c.id===prev)) companySel.value = prev;
+    }
   }
 }
 function inPeriod(dateStr, periodType, month, year){
@@ -2186,8 +2233,8 @@ function inPeriod(dateStr, periodType, month, year){
   if(periodType==='month' && d.getMonth() !== month) return false;
   return true;
 }
-function kpiCard(label, value, sub){
-  return `<div class="kpi"><div class="label">${label}</div><div class="value">${value}</div>${sub?`<div class="hint" style="margin-top:2px;">${sub}</div>`:''}</div>`;
+function kpiCard(label, value, sub, icon, colorClass){
+  return `<div class="kpi kpi-icon ${colorClass||''}"><div class="kpi-icon-badge">${icon||'📊'}</div><div><div class="label">${label}</div><div class="value">${value}</div>${sub?`<div class="hint" style="margin-top:2px;">${sub}</div>`:''}</div></div>`;
 }
 function renderDashboard(){
   populateDashboardSelectors();
@@ -2197,7 +2244,7 @@ function renderDashboard(){
   const year = parseInt(document.getElementById('dashYear').value,10);
   const companyFilter = document.getElementById('dashCompanyFilter').value;
 
-  let list = CANDIDATES;
+  let list = visibleCandidates();
   if(companyFilter) list = list.filter(c=>c.companyId===companyFilter);
 
   const screened = list.filter(c=>inPeriod(c.savedAt, periodType, month, year));
@@ -2211,14 +2258,14 @@ function renderDashboard(){
   const responseRate = contacted.length ? Math.round((responded.length/contacted.length)*100) : 0;
 
   document.getElementById('dashKpis').innerHTML = [
-    kpiCard('Resumes Screened', screened.length, 'Candidates added to the database'),
-    kpiCard('Positions Worked On', positions, 'Distinct designations screened (approximate — not a separate vacancy log)'),
-    kpiCard('Offer Letters Generated', offersGenerated.length, ''),
-    kpiCard('Candidates Shortlisted', shortlisted.length, ''),
-    kpiCard('Candidates Selected', selected.length, ''),
-    kpiCard('Candidates Rejected', rejected.length, ''),
-    kpiCard('Candidates Contacted', contacted.length, ''),
-    kpiCard('Candidates Responded', responded.length, `${responseRate}% response rate`)
+    kpiCard('Resumes Screened', screened.length, 'Candidates added to the database', '📄', 'kpi-teal'),
+    kpiCard('Positions Worked On', positions, 'Distinct designations screened (approximate — not a separate vacancy log)', '💼', 'kpi-blue'),
+    kpiCard('Offer Letters Generated', offersGenerated.length, '', '📝', 'kpi-indigo'),
+    kpiCard('Candidates Shortlisted', shortlisted.length, '', '⭐', 'kpi-amber'),
+    kpiCard('Candidates Selected', selected.length, '', '✅', 'kpi-teal'),
+    kpiCard('Candidates Rejected', rejected.length, '', '❌', 'kpi-coral'),
+    kpiCard('Candidates Contacted', contacted.length, '', '📞', 'kpi-violet'),
+    kpiCard('Candidates Responded', responded.length, `${responseRate}% response rate`, '💬', 'kpi-blue')
   ].join('');
 }
 
@@ -2297,9 +2344,11 @@ async function init(){
     const savedUsername = sessionStorage.getItem('sst-username');
     const savedDisplayName = sessionStorage.getItem('sst-displayname');
     const savedPermissions = sessionStorage.getItem('sst-permissions');
+    const savedCompanyId = sessionStorage.getItem('sst-companyid');
     if((savedRole==='admin' || savedRole==='user') && savedUsername){
       currentRole = savedRole; currentUsername = savedUsername; currentDisplayName = savedDisplayName || savedUsername;
       if(savedPermissions){ try{ currentPermissions = JSON.parse(savedPermissions); }catch(e2){} }
+      currentUserCompanyId = savedCompanyId || null;
     }
   }catch(e){}
   if(currentRole){
